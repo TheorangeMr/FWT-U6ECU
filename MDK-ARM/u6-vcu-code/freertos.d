@@ -32,6 +32,9 @@ u6-vcu-code\freertos.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_exti.h
 u6-vcu-code\freertos.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_dma.h
 u6-vcu-code\freertos.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_dma_ex.h
 u6-vcu-code\freertos.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_cortex.h
+u6-vcu-code\freertos.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_adc.h
+u6-vcu-code\freertos.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_adc.h
+u6-vcu-code\freertos.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_adc_ex.h
 u6-vcu-code\freertos.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_can.h
 u6-vcu-code\freertos.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash.h
 u6-vcu-code\freertos.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash_ex.h
@@ -46,3 +49,10 @@ u6-vcu-code\freertos.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h
 u6-vcu-code\freertos.o: D:\software\keil 5 install\ARM\ARMCC\Bin\..\include\stdio.h
 u6-vcu-code\freertos.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os.h
 u6-vcu-code\freertos.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os2.h
+u6-vcu-code\freertos.o: ../Bsp/ATK-M750/atk_m750.h
+u6-vcu-code\freertos.o: ../Bsp/RingBuffer/RingBuffer.h
+u6-vcu-code\freertos.o: D:\software\keil 5 install\ARM\ARMCC\Bin\..\include\stdbool.h
+u6-vcu-code\freertos.o: ../Bsp/MALLOC/malloc.h
+u6-vcu-code\freertos.o: ../Bsp/wit_c_sdk/wit_c_sdk.h
+u6-vcu-code\freertos.o: D:\software\keil 5 install\ARM\ARMCC\Bin\..\include\string.h
+u6-vcu-code\freertos.o: ../Bsp/wit_c_sdk/REG.h

@@ -23,6 +23,9 @@ u6-vcu-code\stm32f4xx_it.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_ex
 u6-vcu-code\stm32f4xx_it.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_dma.h
 u6-vcu-code\stm32f4xx_it.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_dma_ex.h
 u6-vcu-code\stm32f4xx_it.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_cortex.h
+u6-vcu-code\stm32f4xx_it.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_adc.h
+u6-vcu-code\stm32f4xx_it.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_adc.h
+u6-vcu-code\stm32f4xx_it.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_adc_ex.h
 u6-vcu-code\stm32f4xx_it.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_can.h
 u6-vcu-code\stm32f4xx_it.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash.h
 u6-vcu-code\stm32f4xx_it.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash_ex.h
@@ -36,3 +39,18 @@ u6-vcu-code\stm32f4xx_it.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_ti
 u6-vcu-code\stm32f4xx_it.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h
 u6-vcu-code\stm32f4xx_it.o: D:\software\keil 5 install\ARM\ARMCC\Bin\..\include\stdio.h
 u6-vcu-code\stm32f4xx_it.o: ../Inc/stm32f4xx_it.h
+u6-vcu-code\stm32f4xx_it.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os.h
+u6-vcu-code\stm32f4xx_it.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
+u6-vcu-code\stm32f4xx_it.o: ../Inc/FreeRTOSConfig.h
+u6-vcu-code\stm32f4xx_it.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h
+u6-vcu-code\stm32f4xx_it.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/portable.h
+u6-vcu-code\stm32f4xx_it.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/deprecated_definitions.h
+u6-vcu-code\stm32f4xx_it.o: ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F/portmacro.h
+u6-vcu-code\stm32f4xx_it.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/mpu_wrappers.h
+u6-vcu-code\stm32f4xx_it.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/task.h
+u6-vcu-code\stm32f4xx_it.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/list.h
+u6-vcu-code\stm32f4xx_it.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os2.h
+u6-vcu-code\stm32f4xx_it.o: ../Bsp/RingBuffer/RingBuffer.h
+u6-vcu-code\stm32f4xx_it.o: D:\software\keil 5 install\ARM\ARMCC\Bin\..\include\stdbool.h
+u6-vcu-code\stm32f4xx_it.o: ../Bsp/MALLOC/malloc.h
+u6-vcu-code\stm32f4xx_it.o: D:\software\keil 5 install\ARM\ARMCC\Bin\..\include\string.h

@@ -23,6 +23,9 @@ u6-vcu-code\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_exti.h
 u6-vcu-code\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_dma.h
 u6-vcu-code\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_dma_ex.h
 u6-vcu-code\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_cortex.h
+u6-vcu-code\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_adc.h
+u6-vcu-code\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_adc.h
+u6-vcu-code\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_adc_ex.h
 u6-vcu-code\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_can.h
 u6-vcu-code\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash.h
 u6-vcu-code\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash_ex.h
@@ -46,6 +49,7 @@ u6-vcu-code\main.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/mpu_wrapp
 u6-vcu-code\main.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/task.h
 u6-vcu-code\main.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/list.h
 u6-vcu-code\main.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os2.h
+u6-vcu-code\main.o: ../Inc/adc.h
 u6-vcu-code\main.o: ../Inc/can.h
 u6-vcu-code\main.o: ../Inc/dma.h
 u6-vcu-code\main.o: ../Inc/fatfs.h
@@ -59,3 +63,10 @@ u6-vcu-code\main.o: ../Inc/sd_diskio.h
 u6-vcu-code\main.o: ../Inc/sdio.h
 u6-vcu-code\main.o: ../Inc/usart.h
 u6-vcu-code\main.o: ../Inc/gpio.h
+u6-vcu-code\main.o: ../Bsp/wit_c_sdk/wit_c_sdk.h
+u6-vcu-code\main.o: D:\software\keil 5 install\ARM\ARMCC\Bin\..\include\string.h
+u6-vcu-code\main.o: ../Bsp/wit_c_sdk/REG.h
+u6-vcu-code\main.o: ../Bsp/ATK-M750/atk_m750.h
+u6-vcu-code\main.o: ../Bsp/RingBuffer/RingBuffer.h
+u6-vcu-code\main.o: D:\software\keil 5 install\ARM\ARMCC\Bin\..\include\stdbool.h
+u6-vcu-code\main.o: ../Bsp/MALLOC/malloc.h

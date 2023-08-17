@@ -11,11 +11,10 @@
 #include "string.h"
 #include "stdlib.h"
 
-extern RingBuffer *p_uart3_rxbuf;
-
+extern RingBuffer *p_uart2_rxbuf;
 ST_Time Timedat;
-
 static uint8_t dtu_rxcmdbuf[DTU_RX_CMD_BUF_SIZE]; /*处理DTU相关数据缓存*/
+const char sqpa[4][4] = {"\r\n","/",",",":"};
 
 /**
  * @brief       发送数据到DTU
@@ -28,7 +27,7 @@ static uint8_t dtu_rxcmdbuf[DTU_RX_CMD_BUF_SIZE]; /*处理DTU相关数据缓存*/
 */
 void send_data_to_dtu(uint8_t *data, uint32_t size)
 {
-	HAL_UART_Transmit(&huart3,data, size,0xff);
+	HAL_UART_Transmit(&huart2,data, size,0xff);
 }
 
 /**
@@ -49,7 +48,7 @@ static int send_cmd_to_dtu(char *cmd, char *ask, uint32_t timeout)
 	
     /*初始化缓存数据*/
     memset(dtu_rxcmdbuf, 0, DTU_RX_CMD_BUF_SIZE);
-    RingBuffer_Reset(p_uart3_rxbuf);
+    RingBuffer_Reset(p_uart2_rxbuf);
     /*发送AT指令到DTU*/
     send_data_to_dtu((uint8_t *)cmd, strlen(cmd));
     /*等待DTU应答AT指令结果*/
@@ -68,9 +67,9 @@ static int send_cmd_to_dtu(char *cmd, char *ask, uint32_t timeout)
         {
             return -1;
         }
-        if (RingBuffer_Len(p_uart3_rxbuf) > 0)
+        if (RingBuffer_Len(p_uart2_rxbuf) > 0)
         {
-            RingBuffer_Out(p_uart3_rxbuf, &dtu_rxcmdbuf[rx_len++], 1); //从串口缓存中读一个字节
+            RingBuffer_Out(p_uart2_rxbuf, &dtu_rxcmdbuf[rx_len++], 1); //从串口缓存中读一个字节
             if (rx_len >= DTU_RX_CMD_BUF_SIZE) /*接收应答数据超长，返回ERROR*/
             {
                 return -1;
@@ -343,9 +342,9 @@ static const _dtu_atcmd_st dtu_onenet_param_info[] = {
     {5, "AT+WORK\r\n",      "AT+WORK=\"ONENET\"\r\n"},
 
     /*2.配置OneNET透传模式的工作参数*/
-    {5, "AT+ONEDI\r\n",     "AT+ONEDI=\"1096612439\"\r\n"},
-    {5, "AT+ONEPI\r\n",     "AT+ONEPI=\"609364\"\r\n"},
-    {5, "AT+ONEAI\r\n",     "AT+ONEAI=\"MPY22JP05026022P\"\r\n"},
+    {5, "AT+ONEDI\r\n",     "AT+ONEDI=\"1124926629\"\r\n"},
+    {5, "AT+ONEPI\r\n",     "AT+ONEPI=\"613941\"\r\n"},
+    {5, "AT+ONEAI\r\n",     "AT+ONEAI=\"123123\"\r\n"},
     {5, "AT+ONEIP\r\n",     "AT+ONEIP=\"mqtt.heclouds.com\",\"6002\"\r\n"},
     {5, "AT+ONECON\r\n",    "AT+ONECON=\"3\",\"0\",\"0\",\"1\",\"300\"\r\n"},
 
@@ -535,4 +534,89 @@ int dtu_send_sms(char *phone, char *sms_msg)
     return ret;
 }
 
+/*查询信号强弱指令 AT+CSQ 
+查询基站定位指令 AT+LOC
+当前网络信息指令 AT+SYSINFO
+实时时钟查询指令 AT+CLK   */
 
+/* 
+	*函数名：DTU_AT_CLK_DataAnalyze
+	*功  能：对DTU发送的实时时间数据解析
+	*作  者：罗成
+	*参  数：uint8_t *zdata : 接收到的原数据，uint8_t CLKDat[][32]: 解析后的数据保存在二维数组中
+	*返回值：无
+	*时  间：2022.10.12
+*/
+
+void DTU_AT_CLK_DataAnalyze(char CLKDat[][64])
+{
+	char *pstr,*token;
+	char zdat[64] = {0};
+	uint8_t i = 4,j = 0;
+	pstr = &CLKDat[2][0];
+	while(*pstr != '2')
+	{
+		pstr++;
+	}
+	while(*pstr != '"')
+	{
+		zdat[j] = *pstr;
+		j++;
+		pstr++;
+	}
+//	printf("time = %s\r\n",zdat);
+	token = strtok(zdat, sqpa[1]);
+	while( token != NULL ) 
+	{
+		i++;
+		strcpy(CLKDat[i],token);
+//		printf( "%s\r\n", CLKDat[i]);
+		token = strtok(NULL, sqpa[1]);
+	}
+	token = strtok(CLKDat[7], sqpa[2]);
+	i=7;
+		//   CLK_Dat[0] = &token;
+	while( token != NULL ) 
+	{
+		i++;
+		strcpy(CLKDat[i],token);
+//		printf( "%s\r\n", CLKDat[i]);
+		token = strtok(NULL, sqpa[2]);
+	}			
+	token = strtok(CLKDat[9], sqpa[3]);
+	i=9;
+		//   CLK_Dat[0] = &token;
+	while( token != NULL ) 
+	{
+		i++;
+		strcpy(CLKDat[i],token);
+//		printf( "%s\r\n", CLKDat[i]);
+		token = strtok(NULL, sqpa[3]);
+	}
+/*   5:YEAR 6:MONTH 8:DAY 10:HOUR 11:MINUTE 12:SECOND        */                                      	
+	Timedat.year = atoi(CLKDat[5]);
+	Timedat.month = atoi(CLKDat[6]);
+	Timedat.day = atoi(CLKDat[8]);
+	Timedat.hour = atoi(CLKDat[10]);
+	Timedat.minute = atoi(CLKDat[11]);
+	Timedat.second = atoi(CLKDat[12]);
+} 
+
+/* 
+	*函数名：DTU_AT_CSQ_DataAnalyze
+	*功  能：对DTU发送的4G信号数据解析
+	*作  者：罗成
+	*参  数：uint8_t *zdata : 接收到的原数据，uint8_t CSQDat[][32]: 解析后的数据保存在二维数组中
+	*返回值：value
+	*时  间：2022.10.12
+*/
+
+uint8_t DTU_AT_CSQ_DataAnalyze(char CSQDat[][64])
+{
+	char signal[3] = {0};
+	uint8_t value = 0;
+	signal[0] = CSQDat[2][6];
+	signal[1] = CSQDat[2][7];					
+	value = (signal[0]-48)*10+(signal[1]-48);
+  return value;
+}

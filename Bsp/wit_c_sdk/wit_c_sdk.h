@@ -36,6 +36,12 @@ extern "C" {
 #define WIT_PROTOCOL_CAN    2
 #define WIT_PROTOCOL_I2C    3
 
+//数据结构体
+typedef struct{
+	float fAcc[3];
+	float fGyro[3];
+	float fAngle[3];
+}wit_can_dat;
 
 /* serial function */
 typedef void (*SerialWrite)(uint8_t *p_ucData, uint32_t uiLen);

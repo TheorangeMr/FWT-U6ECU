@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
+#include "adc.h"
 #include "can.h"
 #include "dma.h"
 #include "fatfs.h"
@@ -28,7 +29,10 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "wit_c_sdk.h"
+#include "atk_m750.h"
+#include "RingBuffer.h"
+#include "string.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -49,7 +53,10 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+uint8_t cantx_dat[8] = {0};
+RingBuffer *p_uart2_rxbuf;
+uint8_t DTU_flag = 0;
+extern _dtu_4g_device dtu_device1;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -61,6 +68,31 @@ void MX_FREERTOS_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+/*
+	函数名：Wit_Can_Send_Msg()
+	功  能：CAN发送帧函数
+  参  数：u8 ucStdId：扩展标识符, u8* msg：数据指针, u8 len：数据长度
+  返回值：PASSED:传输成功，FAILED:失败
+*/
+
+void Wit_Can_Send_Msg(uint8_t ucStdId, uint8_t* msg, uint32_t len)
+{
+	uint16_t i=0;uint32_t can_tx_mailbox = 0;
+	CAN_TxHeaderTypeDef TxMessage;
+	TxMessage.StdId=ucStdId;
+	TxMessage.ExtId=0;
+	TxMessage.IDE=CAN_ID_STD;
+	TxMessage.RTR=CAN_RTR_DATA;
+	TxMessage.DLC=len;
+	TxMessage.TransmitGlobalTime=DISABLE;	
+	for(i=0;i<len;i++)
+	cantx_dat[i]=msg[i];
+	while(HAL_CAN_GetTxMailboxesFreeLevel(&hcan1) < 1);
+	if(HAL_CAN_AddTxMessage(&hcan1,&TxMessage,cantx_dat,&can_tx_mailbox) != HAL_OK)
+	{
+		printf ("数据发送失败！\r\n");
+	}
+}
 
 /* USER CODE END 0 */
 
@@ -71,7 +103,8 @@ void MX_FREERTOS_Init(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
+	uint16_t timeout = 0;
+	int ret;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -97,8 +130,53 @@ int main(void)
   MX_SDIO_SD_Init();
   MX_FATFS_Init();
   MX_USART1_UART_Init();
+  MX_USART2_UART_Init();
+  MX_USART3_UART_Init();
+  MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
-  printf("外设初始化/r/n");
+	
+	//nine-axis dvice initialize
+	WitInit(WIT_PROTOCOL_CAN, 0x50);
+	WitRegisterCallBack(SensorDataUpdata);
+	WitCanWriteRegister(Wit_Can_Send_Msg);
+	WitDelayMsRegister(Wit_Delayms);
+	
+	HAL_GPIO_WritePin(GPIOB,GPIO_PIN_3,GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(GPIOA,GPIO_PIN_15,GPIO_PIN_RESET);
+	
+	my_mem_init(SRAMIN);
+	p_uart2_rxbuf = RingBuffer_Malloc(1024);        /*从内存池中分配1K的内存给串口3接收DTU数据*/
+	
+	printf("Wait for Cat1 DTU to start, wait 10s.... \r\n");
+	while( timeout <= 10 )   /* 等待Cat1 DTU启动，需要等待5-6s才能启动 */
+	{
+			ret = dtu_config_init(DTU_WORKMODE_ONENET);    /*初始化DTU工作参数*/
+			if( ret == 0 )
+			{
+				dtu_device1.Dtumode_Switch_flag = 1;
+				
+				printf("Cat1 DTU Init Success \r\n");
+				break;
+			}
+			timeout++;
+			HAL_Delay(1000);
+	}
+	while( timeout > 10 )   /* 超时 */
+	{
+		printf("**************************************************************************\r\n");
+		printf("ATK-DTU Init Fail ...\r\n");
+		printf("请按照以下步骤进行检查:\r\n");
+		printf("1.使用电脑上位机配置软件检查DTU能否单独正常工作\r\n");
+		printf("2.检查DTU串口参数与STM32通讯的串口参数是否一致\r\n");
+		printf("3.检查DTU与STM32串口的接线是否正确\r\n");
+		printf("4.检查DTU供电是否正常，DTU推荐使用12V/1A电源供电，不要使用USB的5V给模块供电！！\r\n");
+		printf("**************************************************************************\r\n\r\n");
+		HAL_Delay(1000);
+		DTU_flag = 1;
+		break;
+	}	
+	
+  printf("外设初始化\r\n");
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -198,6 +276,7 @@ void Error_Handler(void)
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
   __disable_irq();
+	printf("Error_Handler\r\n");
   while (1)
   {
   }

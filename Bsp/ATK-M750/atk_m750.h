@@ -1,8 +1,10 @@
 #ifndef __ATK_M750_H
 #define __ATK_M750_H
 
-
 #define DTU_RX_CMD_BUF_SIZE (512)
+
+#define DTU_ONENETDATE_RX_BUF (512)
+#define DTU_ONNETDATE_TX_BUF (64)
 
 typedef enum
 {
@@ -31,6 +33,15 @@ typedef struct {
     uint8_t timezone;  
 }ST_Time;
 
+typedef struct {
+	uint8_t Dtumode_Switch_flag;
+	uint8_t Onenet_Off_flag;
+	uint8_t Dtu_At_Clkflag;
+	uint8_t Network_size;
+	uint32_t dtu_rxlen;
+	uint8_t dtu_rxbuf[DTU_ONENETDATE_RX_BUF];
+}_dtu_4g_device;
+
 
 void dtu_get_urc_info(uint8_t ch);
 
@@ -40,5 +51,9 @@ int dtu_config_init(_dtu_work_mode_eu work_mode);
 
 int dtu_enter_configmode(void);
 int dtu_enter_transfermode(void);
+
+void DTU_AT_CLK_DataAnalyze(char CLKDat[][64]);
+
+uint8_t DTU_AT_CSQ_DataAnalyze(char CSQDat[][64]);
 
 #endif
