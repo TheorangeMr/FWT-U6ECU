@@ -22,16 +22,27 @@ Dialog DLL:      TCM.DLL V1.48.0.0
  
 <h2>Project:</h2>
 C:\Users\19565\Desktop\U6-VCU\u6-vcu-code\MDK-ARM\u6-vcu-code.uvprojx
-Project File Date:  08/17/2023
+Project File Date:  08/19/2023
 
 <h2>Output:</h2>
 *** Using Compiler 'V5.06 update 7 (build 960)', folder: 'D:\software\keil 5 install\ARM\ARMCC\Bin'
 Build target 'u6-vcu-code'
 compiling freertos.c...
+../Src/freertos.c(385): warning:  #177-D: variable "buf"  was declared but never referenced
+  	uint8_t buf = 0;
+../Src/freertos.c(566): warning:  #177-D: variable "j"  was declared but never referenced
+  	uint8_t j = 0,i = 0;
+../Src/freertos.c(566): warning:  #177-D: variable "i"  was declared but never referenced
+  	uint8_t j = 0,i = 0;
+../Src/freertos.c(567): warning:  #177-D: variable "ret"  was declared but never referenced
+  	int ret;
+../Src/freertos.c(568): warning:  #177-D: variable "signal_dat"  was declared but never referenced
+  	uint8_t signal_dat[64] = {0};
+../Src/freertos.c: 5 warnings, 0 errors
 linking...
-Program Size: Code=36536 RO-data=4564 RW-data=356 ZI-data=1073724  
+Program Size: Code=36592 RO-data=4620 RW-data=360 ZI-data=1073752  
 FromELF: creating hex file...
-"u6-vcu-code\u6-vcu-code.axf" - 0 Error(s), 0 Warning(s).
+"u6-vcu-code\u6-vcu-code.axf" - 0 Error(s), 5 Warning(s).
 
 <h2>Software Packages used:</h2>
 

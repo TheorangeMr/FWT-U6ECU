@@ -43,8 +43,6 @@ u6-vcu-code\ff_gen_drv.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.
 u6-vcu-code\ff_gen_drv.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h
 u6-vcu-code\ff_gen_drv.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h
 u6-vcu-code\ff_gen_drv.o: D:\software\keil 5 install\ARM\ARMCC\Bin\..\include\stdio.h
-u6-vcu-code\ff_gen_drv.o: ../Inc/bsp_driver_sd.h
-u6-vcu-code\ff_gen_drv.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os.h
 u6-vcu-code\ff_gen_drv.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
 u6-vcu-code\ff_gen_drv.o: ../Inc/FreeRTOSConfig.h
 u6-vcu-code\ff_gen_drv.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h
@@ -54,4 +52,6 @@ u6-vcu-code\ff_gen_drv.o: ../Middlewares/Third_Party/FreeRTOS/Source/portable/RV
 u6-vcu-code\ff_gen_drv.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/mpu_wrappers.h
 u6-vcu-code\ff_gen_drv.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/task.h
 u6-vcu-code\ff_gen_drv.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/list.h
+u6-vcu-code\ff_gen_drv.o: ../Inc/bsp_driver_sd.h
+u6-vcu-code\ff_gen_drv.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os.h
 u6-vcu-code\ff_gen_drv.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os2.h

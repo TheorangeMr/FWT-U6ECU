@@ -21,7 +21,7 @@
 #include "adc.h"
 
 /* USER CODE BEGIN 0 */
-uint32_t adc_value = 0;
+uint32_t oildisplay_value = 0;
 /* USER CODE END 0 */
 
 ADC_HandleTypeDef hadc1;
@@ -70,7 +70,7 @@ void MX_ADC1_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN ADC1_Init 2 */
-  HAL_ADC_Start_DMA(&hadc1,&adc_value,sizeof(adc_value)/4);
+  HAL_ADC_Start_DMA(&hadc1,&oildisplay_value,sizeof(oildisplay_value)/4);
   /* USER CODE END ADC1_Init 2 */
 
 }
@@ -152,8 +152,7 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 {
 	if(hadc->Instance == ADC1)
 	{
-//		printf("adc = %dmv\r\n",adc_value*3.3/4096);
-//		HAL_ADC_Start_DMA(&hadc1,&adc_value,sizeof(adc_value)/4);
+
 	}
 }
 /* USER CODE END 1 */

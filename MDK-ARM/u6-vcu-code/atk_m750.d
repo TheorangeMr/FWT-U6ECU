@@ -39,9 +39,20 @@ u6-vcu-code\atk_m750.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h
 u6-vcu-code\atk_m750.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h
 u6-vcu-code\atk_m750.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h
 u6-vcu-code\atk_m750.o: D:\software\keil 5 install\ARM\ARMCC\Bin\..\include\stdio.h
+u6-vcu-code\atk_m750.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
+u6-vcu-code\atk_m750.o: ../Inc/FreeRTOSConfig.h
+u6-vcu-code\atk_m750.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h
+u6-vcu-code\atk_m750.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/portable.h
+u6-vcu-code\atk_m750.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/deprecated_definitions.h
+u6-vcu-code\atk_m750.o: ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F/portmacro.h
+u6-vcu-code\atk_m750.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/mpu_wrappers.h
+u6-vcu-code\atk_m750.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/task.h
+u6-vcu-code\atk_m750.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/list.h
 u6-vcu-code\atk_m750.o: ..\Bsp\ATK-M750\atk_m750.h
 u6-vcu-code\atk_m750.o: ../Bsp/RingBuffer/RingBuffer.h
 u6-vcu-code\atk_m750.o: D:\software\keil 5 install\ARM\ARMCC\Bin\..\include\stdbool.h
 u6-vcu-code\atk_m750.o: ../Bsp/MALLOC/malloc.h
 u6-vcu-code\atk_m750.o: D:\software\keil 5 install\ARM\ARMCC\Bin\..\include\string.h
 u6-vcu-code\atk_m750.o: D:\software\keil 5 install\ARM\ARMCC\Bin\..\include\stdlib.h
+u6-vcu-code\atk_m750.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os.h
+u6-vcu-code\atk_m750.o: ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os2.h

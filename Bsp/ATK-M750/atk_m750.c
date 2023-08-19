@@ -5,11 +5,13 @@
 	*版   本：  由正点原子基础例程修改而来
 *******************************************/
 
+
 #include "usart.h"
 #include "atk_m750.h"
 #include "RingBuffer.h"
 #include "string.h"
 #include "stdlib.h"
+#include "cmsis_os.h"
 
 extern RingBuffer *p_uart2_rxbuf;
 ST_Time Timedat;
@@ -26,8 +28,10 @@ const char sqpa[4][4] = {"\r\n","/",",",":"};
  * 
 */
 void send_data_to_dtu(uint8_t *data, uint32_t size)
-{
+{			
+	osKernelLock ();			
 	HAL_UART_Transmit(&huart2,data, size,0xff);
+	osKernelUnlock ();
 }
 
 /**
@@ -205,7 +209,6 @@ typedef struct
 #define DTU_ATK_M750_URC_SIZE 5
 static _dtu_urc_st DTU_ATK_M750_URC[DTU_ATK_M750_URC_SIZE] =
     {
-       
         {"+ATK ERROR:",                         dtu_urc_atk_error},         /*DTU存在问题，需要联系技术支持进行确认*/
         {"Please check SIM Card !!!\r\n",       dtu_urc_error_sim},         /*DTU未检测到手机卡,请检查手机卡是否正确插入*/
         {"Please check GPRS !!!\r\n",           dtu_urc_error_gprs},        /*请检查SIM卡是否欠费*/
@@ -472,20 +475,16 @@ int dtu_config_init(_dtu_work_mode_eu work_mode)
             break;
         }
     }
-
     if( res != 0 )
     {
         return -2;
     }
-
-
-
-    /*3.DTU进入透传状态*/
-    res = dtu_enter_transfermode();
-    if( res != 0 )
-    {
-        return -3;
-    }
+//    /*3.DTU进入透传状态*/
+//    res = dtu_enter_transfermode();
+//    if( res != 0 )
+//    {
+//        return -3;
+//    }
     return 0;
 }
 

@@ -32,6 +32,9 @@ extern "C" {
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "stdio.h"
+#include "FreeRTOS.h"
+#include "task.h"
+	
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -53,6 +56,9 @@ extern "C" {
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
+
+static void OneNet_Receive(uint8_t *Send_date,uint8_t device_id,uint8_t dat_len);
+static void OneNet_FillBuf(uint8_t *buff,uint8_t devicer_id);
 
 /* USER CODE END EFP */
 

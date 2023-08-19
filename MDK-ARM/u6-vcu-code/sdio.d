@@ -39,3 +39,12 @@ u6-vcu-code\sdio.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h
 u6-vcu-code\sdio.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h
 u6-vcu-code\sdio.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h
 u6-vcu-code\sdio.o: D:\software\keil 5 install\ARM\ARMCC\Bin\..\include\stdio.h
+u6-vcu-code\sdio.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
+u6-vcu-code\sdio.o: ../Inc/FreeRTOSConfig.h
+u6-vcu-code\sdio.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h
+u6-vcu-code\sdio.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/portable.h
+u6-vcu-code\sdio.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/deprecated_definitions.h
+u6-vcu-code\sdio.o: ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F/portmacro.h
+u6-vcu-code\sdio.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/mpu_wrappers.h
+u6-vcu-code\sdio.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/task.h
+u6-vcu-code\sdio.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/list.h

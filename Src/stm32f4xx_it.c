@@ -267,7 +267,7 @@ void USART2_IRQHandler(void)
 		rx_len = sizeof(rx_4g_buffer)-temp;
 		HAL_UART_Receive_DMA(&huart2,rx_4g_buffer,sizeof(rx_4g_buffer));
 		RingBuffer_In(p_uart2_rxbuf, rx_4g_buffer, strlen((char *)rx_4g_buffer));            //∑≈»Îª∫¥Ê
-		HAL_UART_Receive_DMA(&huart2,rx_4g_buffer,sizeof(rx_4g_buffer));
+//		printf("%s\r\n",rx_4g_buffer);
 		osSemaphoreRelease (Onenet_tx_BinarySemHandle);
 	}
   /* USER CODE END USART2_IRQn 0 */
