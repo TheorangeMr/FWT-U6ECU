@@ -70,7 +70,10 @@ typedef StaticEventGroup_t osStaticEventGroupDef_t;
 
 #define EVENTBIT_0	(1<<0)				//九轴事件
 #define EVENTBIT_1	(1<<1)				//暂未使用
-#define EVENTBIT_2	(1<<1)				//4g信号事件
+#define EVENTBIT_2	(1<<2)				//4g信号事件
+
+#define EVENTBIT_3	(1<<3)				
+#define EVENTBIT_4	(1<<4)
 
 /* USER CODE END PD */
 
@@ -392,22 +395,22 @@ void RingBuffer_Read_Handle(void *argument)
   {
 		if(osEventFlagsWait (Vcu_Event1Handle, EVENTBIT_1,osFlagsNoClear, 1)&EVENTBIT_1)
 		{
-//			if (RingBuffer_Len(p_uart2_rxbuf) > 0)          /*接收到DTU传送过来的服务器数据*/
-//			{
-////				RingBuffer_Out(p_uart2_rxbuf, &buf, 1);
-//				dtu_device1.dtu_rxbuf[dtu_device1.dtu_rxlen++] = buf;
-//				dtu_get_urc_info(buf);                      /*解析DTU上报的URC信息*/
-//				if (dtu_device1.dtu_rxlen >= DTU_ONENETDATE_RX_BUF)     /*接收缓存溢出*/
-//				{
-//						HAL_UART_Transmit(&huart1,dtu_device1.dtu_rxbuf,dtu_device1.dtu_rxlen,0xff);
-//						dtu_device1.dtu_rxlen = 0;
-//				}
-//			}
-//			elsedtu_device1.dtu_rxlen
+			if (RingBuffer_Len(p_uart2_rxbuf) > 0)          /*接收到DTU传送过来的服务器数据*/
 			{
-					if (rx_len > 0)
+				RingBuffer_Out(p_uart2_rxbuf, &buf, 1);
+				dtu_device1.dtu_rxbuf[dtu_device1.dtu_rxlen++] = buf;
+				dtu_get_urc_info(buf);                      /*解析DTU上报的URC信息*/
+				if (dtu_device1.dtu_rxlen >= DTU_ONENETDATE_RX_BUF)     /*接收缓存溢出*/
+				{
+						HAL_UART_Transmit(&huart1,dtu_device1.dtu_rxbuf,dtu_device1.dtu_rxlen,0xff);
+						dtu_device1.dtu_rxlen = 0;
+				}
+			}
+			else
+			{
+					if (dtu_device1.dtu_rxlen > 0)
 					{
-//						printf("%s\r\n",rx_4g_buffer);
+						printf("%s\r\n",dtu_device1.dtu_rxbuf);
 							if(strcmp((char *)dtu_device1.dtu_rxbuf,ONENET_COM_OFF)== 0)
 							{
 	#if TEST_PRINTF_RINGBUFFER					
@@ -464,8 +467,8 @@ void RingBuffer_Read_Handle(void *argument)
 								printf("CLKvalue = %s\r\n",DTU_Dat[1]);
 	#endif	
 							}
-							i = 0;//dtu_device1.dtu_rxlen = 0;
-							rx_len = 0;
+							i = 0;//
+							rx_len = 0;dtu_device1.dtu_rxlen = 0;
 					}	
 				}
 			}
@@ -569,40 +572,38 @@ void Signal_4G_Handle(void *argument)
   for(;;)
   {
 		if(dtu_device1.dtu_t_threadflag[0] == 1){
-//			if(osEventFlagsWait (Vcu_Event1Handle, EVENTBIT_2,osFlagsNoClear, osWaitForever)&EVENTBIT_2){
-//				while(j<10){
-//					osKernelLock ();		
-//					for(i=1;i<3;i++){
-//						dtu_device1.dtu_t_threadflag[i] = 0;
-//					}		
-//					osKernelUnlock ();
-//					/*1.DTU进入配置状态*/
-//				  osKernelLock ();
-//			    ret = dtu_enter_configmode();
-//			    osKernelUnlock ();
-//					if ( ret != 0 ){
-//						printf("进入配置失败\r\n");
-//						vTaskDelay(10);
-//						j++;
-//					}
-//					else{
-//						printf("进入配置成功\r\n");
-//						dtu_device1.Dtumode_Switch_flag = 0;
-//						send_data_to_dtu("AT+CSQ\r\n", strlen("AT+CSQ\r\n"));
-//						break;
-//					}
-//				}
-//				j = 0;
-//				osDelay(50);
-//				OneNet_Receive(signal_dat,DTU_Device_ID,sizeof(signal_dat));
-//				osKernelLock ();			
-//				for(i=1;i<3;i++){
-//					 dtu_device1.dtu_t_threadflag[i] = 1;
-//				}		
-//				osKernelUnlock ();
-//			}
+			if(osEventFlagsWait (Vcu_Event1Handle, EVENTBIT_2,osFlagsNoClear, osWaitForever)&EVENTBIT_2){
+				while(j<10){
+					osKernelLock ();		
+					for(i=1;i<3;i++){
+						dtu_device1.dtu_t_threadflag[i] = 0;
+					}
+					osKernelUnlock ();
+					/*1.DTU进入配置状态*/
+			    ret = dtu_enter_configmode();
+					if ( ret != 0 ){
+						printf("进入配置失败\r\n");
+						vTaskDelay(10);
+						j++;
+					}
+					else{
+						printf("进入配置成功\r\n");
+						dtu_device1.Dtumode_Switch_flag = 0;
+						send_data_to_dtu("AT+CSQ\r\n", strlen("AT+CSQ\r\n"));
+						break;
+					}
+				}
+				j = 0;
+				osDelay(50);
+				OneNet_Receive(signal_dat,DTU_Device_ID,sizeof(signal_dat));
+				osKernelLock ();			
+				for(i=1;i<3;i++){
+					 dtu_device1.dtu_t_threadflag[i] = 1;
+				}		
+				osKernelUnlock ();
+			}
 		}
-    osDelay(DTU_Signal_Delay);
+		osDelay(DTU_Signal_Delay);
   }
   /* USER CODE END Signal_4G_Handle */
 }
@@ -641,11 +642,12 @@ static void OneNet_Receive(uint8_t *Send_date,uint8_t device_id,uint8_t dat_len)
 	int res = 0;
 	uint8_t j = 0;
 	if(dtu_device1.Dtumode_Switch_flag == 0){             															 //判断是否处于控制阶段 0处于配置状态 1处于透传状态
+		osKernelLock ();
+		dtu_device1.dtu_t_threadflag[0] = 0;		
+		osKernelUnlock ();
 		while(j<5){
 					/*DTU进入透传状态*/
-			 osKernelLock ();
 			 res = dtu_enter_transfermode();
-			 osKernelUnlock ();
 			 if( res != 0 ){
 				 j++;
 					printf("DTU进入透传状态失败\r\n");
@@ -669,6 +671,7 @@ static void OneNet_Receive(uint8_t *Send_date,uint8_t device_id,uint8_t dat_len)
 			osKernelLock ();
 			OneNet_FillBuf(Send_date,device_id);
 			HAL_UART_Transmit(&huart2,Send_date,dat_len,0xff);
+		  dtu_device1.dtu_t_threadflag[0] = 1;
 			osKernelUnlock ();
 	 }
 }

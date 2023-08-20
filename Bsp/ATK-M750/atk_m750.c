@@ -87,7 +87,7 @@ static int send_cmd_to_dtu(char *cmd, char *ask, uint32_t timeout)
             {
                 return -2;
             }
-						HAL_Delay(100);
+						osDelay(100);
         }
     }
 }
