@@ -28,10 +28,23 @@ Project File Date:  08/19/2023
 *** Using Compiler 'V5.06 update 7 (build 960)', folder: 'D:\software\keil 5 install\ARM\ARMCC\Bin'
 Build target 'u6-vcu-code'
 compiling freertos.c...
+../Src/freertos.c(389): warning:  #177-D: variable "token"  was declared but never referenced
+  	char *token;
+../Src/freertos.c(390): warning:  #177-D: variable "DTU_Dat"  was declared but never referenced
+  	char DTU_Dat[6][64] = {0};
+../Src/freertos.c(391): warning:  #177-D: variable "DTU_ATCLK"  was declared but never referenced
+  	const char DTU_ATCLK[] = "AT+CLK";
+../Src/freertos.c(392): warning:  #177-D: variable "DTU_ATCSQ"  was declared but never referenced
+  	const char DTU_ATCSQ[] = "AT+CSQ";
+../Src/freertos.c(393): warning:  #550-D: variable "i"  was set but never used
+  	uint8_t i = 0,CSQvalue = 0;
+../Src/freertos.c(393): warning:  #177-D: variable "CSQvalue"  was declared but never referenced
+  	uint8_t i = 0,CSQvalue = 0;
+../Src/freertos.c: 6 warnings, 0 errors
 linking...
-Program Size: Code=37016 RO-data=4620 RW-data=360 ZI-data=1073752  
+Program Size: Code=36092 RO-data=4468 RW-data=352 ZI-data=1074784  
 FromELF: creating hex file...
-"u6-vcu-code\u6-vcu-code.axf" - 0 Error(s), 0 Warning(s).
+"u6-vcu-code\u6-vcu-code.axf" - 0 Error(s), 6 Warning(s).
 
 <h2>Software Packages used:</h2>
 

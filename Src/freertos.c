@@ -393,7 +393,7 @@ void RingBuffer_Read_Handle(void *argument)
 	uint8_t i = 0,CSQvalue = 0;
   for(;;)
   {
-		if(osEventFlagsWait (Vcu_Event1Handle, EVENTBIT_1,osFlagsNoClear, 1)&EVENTBIT_1)
+		if(osEventFlagsGet (Vcu_Event1Handle)&EVENTBIT_1)
 		{
 			if (RingBuffer_Len(p_uart2_rxbuf) > 0)          /*接收到DTU传送过来的服务器数据*/
 			{
@@ -410,65 +410,65 @@ void RingBuffer_Read_Handle(void *argument)
 			{
 					if (dtu_device1.dtu_rxlen > 0)
 					{
-						printf("%s\r\n",dtu_device1.dtu_rxbuf);
-							if(strcmp((char *)dtu_device1.dtu_rxbuf,ONENET_COM_OFF)== 0)
-							{
-	#if TEST_PRINTF_RINGBUFFER					
-								printf("data = %s\r\n",dtu_device1.dtu_rxbuf);
-	#endif							
-								dtu_device1.Onenet_Off_flag = 1;
-							}
-							else if(strcmp((char *)dtu_device1.dtu_rxbuf,ONENET_COM_ON)== 0)
-							{
-								dtu_device1.Onenet_Off_flag = 0;				
-							}
+								printf( "%s\r\n",dtu_device1.dtu_rxbuf);
+//							if(strcmp((char *)dtu_device1.dtu_rxbuf,ONENET_COM_OFF)== 0)
+//							{
+//	#if TEST_PRINTF_RINGBUFFER					
+//								printf("data = %s\r\n",dtu_device1.dtu_rxbuf);
+//	#endif							
+//								dtu_device1.Onenet_Off_flag = 1;
+//							}
+//							else if(strcmp((char *)dtu_device1.dtu_rxbuf,ONENET_COM_ON)== 0)
+//							{
+//								dtu_device1.Onenet_Off_flag = 0;				
+//							}
 							/* 获取第一个子字符串 */
-							token = strtok((char *)dtu_device1.dtu_rxbuf, sqpa[0]);
+//							token = strtok((char *)dtu_device1.dtu_rxbuf, sqpa[0]);
 							/* 继续获取其他的子字符串 */
-							while( token != NULL )
-							{
-								i++;
-								strcpy(DTU_Dat[i],token);
-	#if TEST_PRINTF_RINGBUFFER
-								printf( "%s\r\n", DTU_Dat[i]);					
-	#endif
-								token = strtok(NULL, sqpa[0]);
-							}
-							if(strcmp(DTU_Dat[1],DTU_ATCSQ) == 0)
-							{
-								CSQvalue = DTU_AT_CSQ_DataAnalyze(DTU_Dat);
-								if(CSQvalue > 14){
-								dtu_device1.Network_size = 5;}
-								else if(CSQvalue > 9&&CSQvalue <= 14){
-								dtu_device1.Network_size = 4;}
-								else if(CSQvalue > 5&&CSQvalue <= 9){
-								dtu_device1.Network_size = 3;}
-								else if(CSQvalue > 2&&CSQvalue <= 5){
-								dtu_device1.Network_size = 2;}
-								else if(CSQvalue > 1&&CSQvalue <= 2){
-								dtu_device1.Network_size = 1;}
-								else if(CSQvalue == 0){
-								dtu_device1.Network_size = 0;}
-	#if TEST_PRINTF_RINGBUFFER
-								printf("CSQvalue = %d\r\n",CSQvalue);	
-	#endif
-							}
-							else if(strcmp(DTU_Dat[1],DTU_ATCLK) == 0)
-							{
-								DTU_AT_CLK_DataAnalyze(DTU_Dat);
-								dtu_device1.Dtu_At_Clkflag = 1;
-	#if TEST_PRINTF_RINGBUFFER
-								printf("%d \r\n",Timedat.year);
-								printf("%d \r\n",Timedat.month);
-								printf("%d \r\n",Timedat.day);
-								printf("%d \r\n",Timedat.hour);
-								printf("%d \r\n",Timedat.minute);
-								printf("%d \r\n",Timedat.second);
-								printf("CLKvalue = %s\r\n",DTU_Dat[1]);
-	#endif	
-							}
-							i = 0;//
-							rx_len = 0;dtu_device1.dtu_rxlen = 0;
+//							while( token != NULL )
+//							{
+//								i++;
+//								strcpy(DTU_Dat[i],token);
+//	#if TEST_PRINTF_RINGBUFFER
+//								printf( "%s\r\n", DTU_Dat[i]);					
+//	#endif
+//								token = strtok(NULL, sqpa[0]);
+//							}
+//							if(strcmp(DTU_Dat[1],DTU_ATCSQ) == 0)
+//							{
+//								CSQvalue = DTU_AT_CSQ_DataAnalyze(DTU_Dat);
+//								if(CSQvalue > 14){
+//								dtu_device1.Network_size = 5;}
+//								else if(CSQvalue > 9&&CSQvalue <= 14){
+//								dtu_device1.Network_size = 4;}
+//								else if(CSQvalue > 5&&CSQvalue <= 9){
+//								dtu_device1.Network_size = 3;}
+//								else if(CSQvalue > 2&&CSQvalue <= 5){
+//								dtu_device1.Network_size = 2;}
+//								else if(CSQvalue > 1&&CSQvalue <= 2){
+//								dtu_device1.Network_size = 1;}
+//								else if(CSQvalue == 0){
+//								dtu_device1.Network_size = 0;}
+//	#if TEST_PRINTF_RINGBUFFER
+//								printf("CSQvalue = %d\r\n",CSQvalue);	
+//	#endif
+//							}
+//							else if(strcmp(DTU_Dat[1],DTU_ATCLK) == 0)
+//							{
+//								DTU_AT_CLK_DataAnalyze(DTU_Dat);
+//								dtu_device1.Dtu_At_Clkflag = 1;
+//	#if TEST_PRINTF_RINGBUFFER
+//								printf("%d \r\n",Timedat.year);
+//								printf("%d \r\n",Timedat.month);
+//								printf("%d \r\n",Timedat.day);
+//								printf("%d \r\n",Timedat.hour);
+//								printf("%d \r\n",Timedat.minute);
+//								printf("%d \r\n",Timedat.second);
+//								printf("CLKvalue = %s\r\n",DTU_Dat[1]);
+//	#endif	
+//							}
+							i = 0;
+							dtu_device1.dtu_rxlen = 0;
 					}	
 				}
 			}
@@ -493,7 +493,7 @@ void OilDisplayment_Handle(void *argument)
   for(;;)
   {
 		displacement_dat = oildisplay_value*50/4096;
-		printf("%d\r\n",displacement_dat);
+//		printf("%d\r\n",displacement_dat);
 		if(dtu_device1.dtu_t_threadflag[1] == 1&&dtu_device1.Onenet_Off_flag == 0){
 		OneNet_Receive(oildisplay,XJ1_Device_ID,sizeof(oildisplay));
 		}
@@ -574,7 +574,8 @@ void Signal_4G_Handle(void *argument)
 		if(dtu_device1.dtu_t_threadflag[0] == 1){
 			if(osEventFlagsWait (Vcu_Event1Handle, EVENTBIT_2,osFlagsNoClear, osWaitForever)&EVENTBIT_2){
 				while(j<10){
-					osKernelLock ();		
+					osEventFlagsClear(Vcu_Event1Handle, EVENTBIT_1);
+					osKernelLock ();
 					for(i=1;i<3;i++){
 						dtu_device1.dtu_t_threadflag[i] = 0;
 					}
@@ -601,6 +602,7 @@ void Signal_4G_Handle(void *argument)
 					 dtu_device1.dtu_t_threadflag[i] = 1;
 				}		
 				osKernelUnlock ();
+				osEventFlagsSet(Vcu_Event1Handle, EVENTBIT_1);
 			}
 		}
 		osDelay(DTU_Signal_Delay);
