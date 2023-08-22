@@ -271,7 +271,7 @@ void USART2_IRQHandler(void)
 		if(osEventFlagsGet (Vcu_Event1Handle)&EVENTBIT_1)
 		{
 			if((strstr((char *)rx_4g_buffer, "+CLK") == ((char *)rx_4g_buffer+2))||\
-				(strstr((char *)rx_4g_buffer, "+CSQ") == ((char *)rx_4g_buffer+2)))
+				(strstr((char *)rx_4g_buffer, "+CSQ:") == ((char *)rx_4g_buffer+2)))
 			{
 				osMessageQueuePut (UsartQueueHandle, rx_4g_buffer, NULL,0);				
 			}

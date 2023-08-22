@@ -39,6 +39,7 @@ typedef struct {
 	uint8_t Network_size;
 	uint32_t dtu_rxlen;
 	uint8_t dtu_rxbuf[DTU_ONENETDATE_RX_BUF];
+	ST_Time Clk_value;
 }_dtu_4g_device;
 
 
@@ -50,8 +51,6 @@ int dtu_config_init(_dtu_work_mode_eu work_mode);
 
 int dtu_enter_configmode(void);
 int dtu_enter_transfermode(void);
-
-void DTU_AT_CLK_DataAnalyze(char CLKDat[][64]);
 
 uint8_t DTU_AT_CSQ_DataAnalyze(char CSQDat[][64]);
 

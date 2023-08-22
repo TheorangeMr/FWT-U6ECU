@@ -14,7 +14,6 @@
 #include "cmsis_os.h"
 
 extern RingBuffer *p_uart2_rxbuf;
-ST_Time Timedat;
 static uint8_t dtu_rxcmdbuf[DTU_RX_CMD_BUF_SIZE]; /*处理DTU相关数据缓存*/
 const char sqpa[4][4] = {"\r\n","/",",",":"};
 
@@ -538,68 +537,6 @@ int dtu_send_sms(char *phone, char *sms_msg)
 当前网络信息指令 AT+SYSINFO
 实时时钟查询指令 AT+CLK   */
 
-/* 
-	*函数名：DTU_AT_CLK_DataAnalyze
-	*功  能：对DTU发送的实时时间数据解析
-	*作  者：罗成
-	*参  数：uint8_t *zdata : 接收到的原数据，uint8_t CLKDat[][32]: 解析后的数据保存在二维数组中
-	*返回值：无
-	*时  间：2022.10.12
-*/
-
-void DTU_AT_CLK_DataAnalyze(char CLKDat[][64])
-{
-	char *pstr,*token;
-	char zdat[64] = {0};
-	uint8_t i = 4,j = 0;
-	pstr = &CLKDat[2][0];
-	while(*pstr != '2')
-	{
-		pstr++;
-	}
-	while(*pstr != '"')
-	{
-		zdat[j] = *pstr;
-		j++;
-		pstr++;
-	}
-//	printf("time = %s\r\n",zdat);
-	token = strtok(zdat, sqpa[1]);
-	while( token != NULL ) 
-	{
-		i++;
-		strcpy(CLKDat[i],token);
-//		printf( "%s\r\n", CLKDat[i]);
-		token = strtok(NULL, sqpa[1]);
-	}
-	token = strtok(CLKDat[7], sqpa[2]);
-	i=7;
-		//   CLK_Dat[0] = &token;
-	while( token != NULL ) 
-	{
-		i++;
-		strcpy(CLKDat[i],token);
-//		printf( "%s\r\n", CLKDat[i]);
-		token = strtok(NULL, sqpa[2]);
-	}			
-	token = strtok(CLKDat[9], sqpa[3]);
-	i=9;
-		//   CLK_Dat[0] = &token;
-	while( token != NULL ) 
-	{
-		i++;
-		strcpy(CLKDat[i],token);
-//		printf( "%s\r\n", CLKDat[i]);
-		token = strtok(NULL, sqpa[3]);
-	}
-/*   5:YEAR 6:MONTH 8:DAY 10:HOUR 11:MINUTE 12:SECOND        */                                      	
-	Timedat.year = atoi(CLKDat[5]);
-	Timedat.month = atoi(CLKDat[6]);
-	Timedat.day = atoi(CLKDat[8]);
-	Timedat.hour = atoi(CLKDat[10]);
-	Timedat.minute = atoi(CLKDat[11]);
-	Timedat.second = atoi(CLKDat[12]);
-} 
 
 /* 
 	*函数名：DTU_AT_CSQ_DataAnalyze

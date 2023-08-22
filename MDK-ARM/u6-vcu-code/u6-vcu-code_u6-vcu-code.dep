@@ -1,6 +1,6 @@
 Dependencies for Project 'u6-vcu-code', Target 'u6-vcu-code': (DO NOT MODIFY !)
 CompilerVersion: 5060960::V5.06 update 7 (build 960)::.\ARMCC
-F (startup_stm32f407xx.s)(0x64E2D9C7)(--cpu Cortex-M4.fp.sp -g --apcs=interwork --pd "__MICROLIB SETA 1" -I ../Inc-I.\RTE\_u6-vcu-code-IC:\Users\19565\AppData\Local\Arm\Packs\ARM\CMSIS\5.7.0\CMSIS\Core\Include-IC:\Users\19565\AppData\Local\Arm\Packs\Keil\STM32F4xx_DFP\2.16.0\Drivers\CMSIS\Device\ST\STM32F4xx\Include--pd "__UVISION_VERSION SETA 533" --pd "_RTE_ SETA 1" --pd "STM32F407xx SETA 1" --pd "_RTE_ SETA 1"--list startup_stm32f407xx.lst --xref -o u6-vcu-code\startup_stm32f407xx.o --depend u6-vcu-code\startup_stm32f407xx.d)
+F (startup_stm32f407xx.s)(0x64E4B4DA)(--cpu Cortex-M4.fp.sp -g --apcs=interwork --pd "__MICROLIB SETA 1" -I ../Inc-I.\RTE\_u6-vcu-code-IC:\Users\19565\AppData\Local\Arm\Packs\ARM\CMSIS\5.7.0\CMSIS\Core\Include-IC:\Users\19565\AppData\Local\Arm\Packs\Keil\STM32F4xx_DFP\2.16.0\Drivers\CMSIS\Device\ST\STM32F4xx\Include--pd "__UVISION_VERSION SETA 533" --pd "_RTE_ SETA 1" --pd "STM32F407xx SETA 1" --pd "_RTE_ SETA 1"--list startup_stm32f407xx.lst --xref -o u6-vcu-code\startup_stm32f407xx.o --depend u6-vcu-code\startup_stm32f407xx.d)
 F (../Src/main.c)(0x64DF28C0)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F -I ../Middlewares/Third_Party/FatFs/src -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../Bsp/wit_c_sdk -I ../Bsp/MALLOC -I ../Bsp/RingBuffer -I ../Bsp/ATK-M750-I.\RTE\_u6-vcu-code-IC:\Users\19565\AppData\Local\Arm\Packs\ARM\CMSIS\5.7.0\CMSIS\Core\Include-IC:\Users\19565\AppData\Local\Arm\Packs\Keil\STM32F4xx_DFP\2.16.0\Drivers\CMSIS\Device\ST\STM32F4xx\Include-D__UVISION_VERSION="533" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o u6-vcu-code\main.o --omf_browse u6-vcu-code\main.crf --depend u6-vcu-code\main.d)
 I (../Inc/main.h)(0x64DF61A6)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h)(0x64795C14)
@@ -68,7 +68,7 @@ I (../Inc/gpio.h)(0x64D30A0B)
 I (../Bsp/wit_c_sdk/wit_c_sdk.h)(0x64DDE96C)
 I (D:\software\keil 5 install\ARM\ARMCC\include\string.h)(0x5E8E2EB2)
 I (../Bsp/wit_c_sdk/REG.h)(0x646C3092)
-I (../Bsp/ATK-M750/atk_m750.h)(0x64E43D87)
+I (../Bsp/ATK-M750/atk_m750.h)(0x64E4AD87)
 I (../Bsp/RingBuffer/RingBuffer.h)(0x6334160E)
 I (D:\software\keil 5 install\ARM\ARMCC\include\stdbool.h)(0x5E8E2EB2)
 I (../Bsp/MALLOC/malloc.h)(0x64D40564)
@@ -121,7 +121,7 @@ I (../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F/portmacro.h
 I (../Middlewares/Third_Party/FreeRTOS/Source/include/mpu_wrappers.h)(0x64795BB7)
 I (../Middlewares/Third_Party/FreeRTOS/Source/include/task.h)(0x64795BB7)
 I (../Middlewares/Third_Party/FreeRTOS/Source/include/list.h)(0x64795BB7)
-F (../Src/freertos.c)(0x64E43ECF)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F -I ../Middlewares/Third_Party/FatFs/src -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../Bsp/wit_c_sdk -I ../Bsp/MALLOC -I ../Bsp/RingBuffer -I ../Bsp/ATK-M750-I.\RTE\_u6-vcu-code-IC:\Users\19565\AppData\Local\Arm\Packs\ARM\CMSIS\5.7.0\CMSIS\Core\Include-IC:\Users\19565\AppData\Local\Arm\Packs\Keil\STM32F4xx_DFP\2.16.0\Drivers\CMSIS\Device\ST\STM32F4xx\Include-D__UVISION_VERSION="533" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o u6-vcu-code\freertos.o --omf_browse u6-vcu-code\freertos.crf --depend u6-vcu-code\freertos.d)
+F (../Src/freertos.c)(0x64E4B44F)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F -I ../Middlewares/Third_Party/FatFs/src -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../Bsp/wit_c_sdk -I ../Bsp/MALLOC -I ../Bsp/RingBuffer -I ../Bsp/ATK-M750-I.\RTE\_u6-vcu-code-IC:\Users\19565\AppData\Local\Arm\Packs\ARM\CMSIS\5.7.0\CMSIS\Core\Include-IC:\Users\19565\AppData\Local\Arm\Packs\Keil\STM32F4xx_DFP\2.16.0\Drivers\CMSIS\Device\ST\STM32F4xx\Include-D__UVISION_VERSION="533" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o u6-vcu-code\freertos.o --omf_browse u6-vcu-code\freertos.crf --depend u6-vcu-code\freertos.d)
 I (../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h)(0x64795BB7)
 I (D:\software\keil 5 install\ARM\ARMCC\include\stddef.h)(0x5E8E2EB2)
 I (D:\software\keil 5 install\ARM\ARMCC\include\stdint.h)(0x5E8E2EB2)
@@ -171,13 +171,14 @@ I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h)(0x64795C14)
 I (D:\software\keil 5 install\ARM\ARMCC\include\stdio.h)(0x62CFFF4B)
 I (../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os.h)(0x64795BB7)
 I (../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os2.h)(0x64795BB7)
-I (../Bsp/ATK-M750/atk_m750.h)(0x64E43D87)
+I (../Bsp/ATK-M750/atk_m750.h)(0x64E4AD87)
 I (../Bsp/RingBuffer/RingBuffer.h)(0x6334160E)
 I (D:\software\keil 5 install\ARM\ARMCC\include\stdbool.h)(0x5E8E2EB2)
 I (../Bsp/MALLOC/malloc.h)(0x64D40564)
 I (../Bsp/wit_c_sdk/wit_c_sdk.h)(0x64DDE96C)
 I (D:\software\keil 5 install\ARM\ARMCC\include\string.h)(0x5E8E2EB2)
 I (../Bsp/wit_c_sdk/REG.h)(0x646C3092)
+I (D:\software\keil 5 install\ARM\ARMCC\include\stdlib.h)(0x5E8E2EB2)
 F (../Src/adc.c)(0x64DF22F5)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F -I ../Middlewares/Third_Party/FatFs/src -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../Bsp/wit_c_sdk -I ../Bsp/MALLOC -I ../Bsp/RingBuffer -I ../Bsp/ATK-M750-I.\RTE\_u6-vcu-code-IC:\Users\19565\AppData\Local\Arm\Packs\ARM\CMSIS\5.7.0\CMSIS\Core\Include-IC:\Users\19565\AppData\Local\Arm\Packs\Keil\STM32F4xx_DFP\2.16.0\Drivers\CMSIS\Device\ST\STM32F4xx\Include-D__UVISION_VERSION="533" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o u6-vcu-code\adc.o --omf_browse u6-vcu-code\adc.crf --depend u6-vcu-code\adc.d)
 I (../Inc/adc.h)(0x64DCB35E)
 I (../Inc/main.h)(0x64DF61A6)
@@ -577,7 +578,7 @@ I (../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F/portmacro.h
 I (../Middlewares/Third_Party/FreeRTOS/Source/include/mpu_wrappers.h)(0x64795BB7)
 I (../Middlewares/Third_Party/FreeRTOS/Source/include/task.h)(0x64795BB7)
 I (../Middlewares/Third_Party/FreeRTOS/Source/include/list.h)(0x64795BB7)
-F (../Src/stm32f4xx_it.c)(0x64E42FFF)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F -I ../Middlewares/Third_Party/FatFs/src -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../Bsp/wit_c_sdk -I ../Bsp/MALLOC -I ../Bsp/RingBuffer -I ../Bsp/ATK-M750-I.\RTE\_u6-vcu-code-IC:\Users\19565\AppData\Local\Arm\Packs\ARM\CMSIS\5.7.0\CMSIS\Core\Include-IC:\Users\19565\AppData\Local\Arm\Packs\Keil\STM32F4xx_DFP\2.16.0\Drivers\CMSIS\Device\ST\STM32F4xx\Include-D__UVISION_VERSION="533" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o u6-vcu-code\stm32f4xx_it.o --omf_browse u6-vcu-code\stm32f4xx_it.crf --depend u6-vcu-code\stm32f4xx_it.d)
+F (../Src/stm32f4xx_it.c)(0x64E4A686)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F -I ../Middlewares/Third_Party/FatFs/src -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../Bsp/wit_c_sdk -I ../Bsp/MALLOC -I ../Bsp/RingBuffer -I ../Bsp/ATK-M750-I.\RTE\_u6-vcu-code-IC:\Users\19565\AppData\Local\Arm\Packs\ARM\CMSIS\5.7.0\CMSIS\Core\Include-IC:\Users\19565\AppData\Local\Arm\Packs\Keil\STM32F4xx_DFP\2.16.0\Drivers\CMSIS\Device\ST\STM32F4xx\Include-D__UVISION_VERSION="533" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o u6-vcu-code\stm32f4xx_it.o --omf_browse u6-vcu-code\stm32f4xx_it.crf --depend u6-vcu-code\stm32f4xx_it.d)
 I (../Inc/main.h)(0x64DF61A6)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h)(0x64795C14)
 I (../Inc/stm32f4xx_hal_conf.h)(0x64DCB362)
@@ -2083,7 +2084,7 @@ I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim_ex.h)(0x64795C14)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_uart.h)(0x64795C14)
 I (D:\software\keil 5 install\ARM\ARMCC\include\stdlib.h)(0x5E8E2EB2)
 I (D:\software\keil 5 install\ARM\ARMCC\include\string.h)(0x5E8E2EB2)
-F (..\Bsp\ATK-M750\atk_m750.c)(0x64E1C745)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F -I ../Middlewares/Third_Party/FatFs/src -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../Bsp/wit_c_sdk -I ../Bsp/MALLOC -I ../Bsp/RingBuffer -I ../Bsp/ATK-M750-I.\RTE\_u6-vcu-code-IC:\Users\19565\AppData\Local\Arm\Packs\ARM\CMSIS\5.7.0\CMSIS\Core\Include-IC:\Users\19565\AppData\Local\Arm\Packs\Keil\STM32F4xx_DFP\2.16.0\Drivers\CMSIS\Device\ST\STM32F4xx\Include-D__UVISION_VERSION="533" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o u6-vcu-code\atk_m750.o --omf_browse u6-vcu-code\atk_m750.crf --depend u6-vcu-code\atk_m750.d)
+F (..\Bsp\ATK-M750\atk_m750.c)(0x64E4ADE6)(--c99 -c --cpu Cortex-M4.fp.sp -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc -I ../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I ../Middlewares/Third_Party/FreeRTOS/Source/include -I ../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 -I ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F -I ../Middlewares/Third_Party/FatFs/src -I ../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I ../Drivers/CMSIS/Include -I ../Bsp/wit_c_sdk -I ../Bsp/MALLOC -I ../Bsp/RingBuffer -I ../Bsp/ATK-M750-I.\RTE\_u6-vcu-code-IC:\Users\19565\AppData\Local\Arm\Packs\ARM\CMSIS\5.7.0\CMSIS\Core\Include-IC:\Users\19565\AppData\Local\Arm\Packs\Keil\STM32F4xx_DFP\2.16.0\Drivers\CMSIS\Device\ST\STM32F4xx\Include-D__UVISION_VERSION="533" -D_RTE_ -DSTM32F407xx -D_RTE_ -DUSE_HAL_DRIVER -DSTM32F407xx-o u6-vcu-code\atk_m750.o --omf_browse u6-vcu-code\atk_m750.crf --depend u6-vcu-code\atk_m750.d)
 I (../Inc/usart.h)(0x64DB260C)
 I (../Inc/main.h)(0x64DF61A6)
 I (../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h)(0x64795C14)
@@ -2132,7 +2133,7 @@ I (../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F/portmacro.h
 I (../Middlewares/Third_Party/FreeRTOS/Source/include/mpu_wrappers.h)(0x64795BB7)
 I (../Middlewares/Third_Party/FreeRTOS/Source/include/task.h)(0x64795BB7)
 I (../Middlewares/Third_Party/FreeRTOS/Source/include/list.h)(0x64795BB7)
-I (..\Bsp\ATK-M750\atk_m750.h)(0x64E43D87)
+I (..\Bsp\ATK-M750\atk_m750.h)(0x64E4AD87)
 I (../Bsp/RingBuffer/RingBuffer.h)(0x6334160E)
 I (D:\software\keil 5 install\ARM\ARMCC\include\stdbool.h)(0x5E8E2EB2)
 I (../Bsp/MALLOC/malloc.h)(0x64D40564)
@@ -2140,4 +2141,4 @@ I (D:\software\keil 5 install\ARM\ARMCC\include\string.h)(0x5E8E2EB2)
 I (D:\software\keil 5 install\ARM\ARMCC\include\stdlib.h)(0x5E8E2EB2)
 I (../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os.h)(0x64795BB7)
 I (../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2/cmsis_os2.h)(0x64795BB7)
-F (..\Bsp\readme.txt)(0x64E1C93B)()
+F (..\Bsp\readme.txt)(0x64E4B40A)()
