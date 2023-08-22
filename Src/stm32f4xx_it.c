@@ -37,7 +37,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define EVENTBIT_1	(1<<1)				//暂未使用
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -52,6 +52,8 @@ uint8_t rx_len = 0;
 extern RingBuffer *p_uart2_rxbuf;
 extern uint8_t rx_4g_buffer[128];
 extern osSemaphoreId Onenet_tx_BinarySemHandle;
+extern osMessageQueueId_t UsartQueueHandle;
+extern osEventFlagsId_t Vcu_Event1Handle;
 
 /* USER CODE END PV */
 
@@ -266,8 +268,15 @@ void USART2_IRQHandler(void)
 		temp = __HAL_DMA_GET_COUNTER(&hdma_usart2_rx);
 		rx_len = sizeof(rx_4g_buffer)-temp;
 		HAL_UART_Receive_DMA(&huart2,rx_4g_buffer,sizeof(rx_4g_buffer));
+		if(osEventFlagsGet (Vcu_Event1Handle)&EVENTBIT_1)
+		{
+			if((strstr((char *)rx_4g_buffer, "+CLK") == ((char *)rx_4g_buffer+2))||\
+				(strstr((char *)rx_4g_buffer, "+CSQ") == ((char *)rx_4g_buffer+2)))
+			{
+				osMessageQueuePut (UsartQueueHandle, rx_4g_buffer, NULL,0);				
+			}
+		}
 		RingBuffer_In(p_uart2_rxbuf, rx_4g_buffer, strlen((char *)rx_4g_buffer));            //放入缓存
-//		printf("%s\r\n",rx_4g_buffer);
 		osSemaphoreRelease (Onenet_tx_BinarySemHandle);
 	}
   /* USER CODE END USART2_IRQn 0 */
