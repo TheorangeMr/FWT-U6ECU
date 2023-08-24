@@ -29,6 +29,8 @@
 #include "RingBuffer.h"
 #include "wit_c_sdk.h"
 #include "stdlib.h"
+#include "gps.h"
+#include "usart.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -42,8 +44,7 @@ typedef StaticEventGroup_t osStaticEventGroupDef_t;
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-#define TEST_PRINTF_RINGBUFFER 1
-#define TEST_PRINTF_RINGBUFFER 1
+
 
 #define Wit_dat   ((uint32_t)0x50) //标识符ID：0x50    (标准帧)
 #define Wit_Device_ID        ((uint8_t)0x01)
@@ -80,7 +81,7 @@ typedef StaticEventGroup_t osStaticEventGroupDef_t;
 #define EVENTBIT_6	(1<<6)        // 油门行程4g发送事件
 #define EVENTBIT_7	(1<<7)				// 九轴4g发送事件
 
-
+#define EVENTBIT_8	(1<<8)				// GPS数据采集时间
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -99,10 +100,15 @@ extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
 extern UART_HandleTypeDef huart3;
 
+extern uint8_t USART3_RX_BUF[USART3_MAX_RECV_LEN]; 				//接收缓冲,最大USART3_MAX_RECV_LEN个字节.
+extern uint8_t  USART3_TX_BUF[USART3_MAX_SEND_LEN]; 			//发送缓冲,最大USART3_MAX_SEND_LEN字节
+uint8_t USART1_TX_BUF[USART3_MAX_RECV_LEN]; 					//串口1,发送缓存区
+
+__IO uint16_t USART3_RX_STA=0;
 extern uint8_t rx_4g_buffer[128];
 extern uint8_t rx_len;
 extern uint8_t rx_flag;
-
+extern uint8_t usart_rx_char;
 //adc
 extern ADC_HandleTypeDef hadc1;
 
@@ -125,6 +131,11 @@ _dtu_4g_device dtu_device1 = {0,0,0,0,{0}};
 //oil_displacement
 
 uint8_t displacement_dat = 0;
+
+//GPS
+
+nmea_msg gpsx; 											//GPS信息
+const uint8_t *fixmode_tbl[4]={"Fail","Fail"," 2D "," 3D "};	//fix mode字符串 
 
 /* USER CODE END Variables */
 /* Definitions for Wit_dat_Task */
@@ -153,7 +164,7 @@ osThreadId_t OilDisplay_TaskHandle;
 const osThreadAttr_t OilDisplay_Task_attributes = {
   .name = "OilDisplay_Task",
   .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityLow4,
+  .priority = (osPriority_t) osPriorityLow5,
 };
 /* Definitions for DTU_Init_Task */
 osThreadId_t DTU_Init_TaskHandle;
@@ -168,6 +179,20 @@ const osThreadAttr_t Signal_4G_Task_attributes = {
   .name = "Signal_4G_Task",
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityLow,
+};
+/* Definitions for GPS_Init_Task */
+osThreadId_t GPS_Init_TaskHandle;
+const osThreadAttr_t GPS_Init_Task_attributes = {
+  .name = "GPS_Init_Task",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal1,
+};
+/* Definitions for GPS_Get_Task */
+osThreadId_t GPS_Get_TaskHandle;
+const osThreadAttr_t GPS_Get_Task_attributes = {
+  .name = "GPS_Get_Task",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityLow3,
 };
 /* Definitions for UsartQueue */
 osMessageQueueId_t UsartQueueHandle;
@@ -210,6 +235,8 @@ void RingBuffer_Read_Handle(void *argument);
 void OilDisplayment_Handle(void *argument);
 void DTU_Init_Handle(void *argument);
 void Signal_4G_Handle(void *argument);
+void GPS_Init_Handle(void *argument);
+void GPS_Get_Handle(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -269,6 +296,12 @@ void MX_FREERTOS_Init(void) {
   /* creation of Signal_4G_Task */
   Signal_4G_TaskHandle = osThreadNew(Signal_4G_Handle, NULL, &Signal_4G_Task_attributes);
 
+  /* creation of GPS_Init_Task */
+  GPS_Init_TaskHandle = osThreadNew(GPS_Init_Handle, NULL, &GPS_Init_Task_attributes);
+
+  /* creation of GPS_Get_Task */
+  GPS_Get_TaskHandle = osThreadNew(GPS_Get_Handle, NULL, &GPS_Get_Task_attributes);
+
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
 	
@@ -295,10 +328,22 @@ void MX_FREERTOS_Init(void) {
 		printf("OilDisplay_TaskHandle任务创建成功!\r\n");
 	else
 		printf(" OilDisplay_TaskHandle任务创建失败!\r\n");
-	if(NULL != Signal_4G_TaskHandle)/* 创建成功 */
+	if(NULL != DTU_Init_TaskHandle)/* 创建成功 */
+		printf("DTU_Init_TaskHandle任务创建成功!\r\n");
+	else
+		printf(" DTU_Init_TaskHandle任务创建失败!\r\n");
+		if(NULL != Signal_4G_TaskHandle)/* 创建成功 */
 		printf("Signal_4G_TaskHandle任务创建成功!\r\n");
 	else
 		printf(" Signal_4G_TaskHandle任务创建失败!\r\n");
+		if(NULL != GPS_Init_TaskHandle)/* 创建成功 */
+		printf("GPS_Init_TaskHandle任务创建成功!\r\n");
+	else
+		printf("GPS_Init_TaskHandle任务创建失败!\r\n");
+		if(NULL != GPS_Get_TaskHandle)/* 创建成功 */
+		printf("GPS_Get_TaskHandle任务创建成功!\r\n");
+	else
+		printf(" GPS_Get_TaskHandle任务创建失败!\r\n");
   /* USER CODE END RTOS_THREADS */
 
   /* Create the event(s) */
@@ -637,6 +682,72 @@ void Signal_4G_Handle(void *argument)
   /* USER CODE END Signal_4G_Handle */
 }
 
+/* USER CODE BEGIN Header_GPS_Init_Handle */
+/**
+* @brief Function implementing the GPS_Init thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_GPS_Init_Handle */
+void GPS_Init_Handle(void *argument)
+{
+  /* USER CODE BEGIN GPS_Init_Handle */
+  /* Infinite loop */
+	uint8_t key=0xff;
+	uint8_t i = 0;
+  for(;;)
+  {
+		if(Ublox_Cfg_Rate(1000,1)!=0)	//设置定位信息更新速度为1000ms,顺便判断GPS模块是否在位. 
+		{
+			while((Ublox_Cfg_Rate(1000,1)!=0)&&key)	//持续判断,直到可以检查到WT-GPS_BD,且数据保存成功
+			{
+				Ublox_Cfg_Tp(1000000,100000,1);	//设置PPS为1秒钟输出1次,脉冲宽度为100ms
+				key=Ublox_Cfg_Cfg_Save();		//保存配置
+				i++;
+        if(i > 5){
+					break;
+				}	
+			}
+			if(i>5){
+				printf("GPS Set Fail\r\n");
+			}
+			else{
+				printf("GPS Set Success\r\n");
+			}
+			osDelay(500);
+			osEventFlagsSet(Vcu_Event1Handle, EVENTBIT_8);
+		}
+    vTaskDelete(GPS_Init_TaskHandle);
+  }
+  /* USER CODE END GPS_Init_Handle */
+}
+
+/* USER CODE BEGIN Header_GPS_Get_Handle */
+/**
+* @brief Function implementing the GPS_Get_Task thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_GPS_Get_Handle */
+void GPS_Get_Handle(void *argument)
+{
+  /* USER CODE BEGIN GPS_Get_Handle */
+  /* Infinite loop */
+  for(;;)
+  {
+		if(osEventFlagsGet (Vcu_Event1Handle)&EVENTBIT_8){
+			if(USART3_RX_STA&0X8000)		//接收到一次数据了
+			{
+				USART3_RX_STA=0;		   	//启动下一次接收
+				GPS_Analysis(&gpsx,(uint8_t*)USART3_RX_BUF);//分析字符串
+				Gps_Msg_Show();				//显示信息
+			}
+		}
+    osDelay(1005);
+  }
+  /* USER CODE END GPS_Get_Handle */
+}
+
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
@@ -736,5 +847,55 @@ static void OneNet_FillBuf(uint8_t *buff,uint8_t devicer_id)
 	osKernelUnlock ();
 }
 
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+	__IO static uint32_t UsartTick = 0;
+	uint8_t cflag = 0;
+	if(huart->Instance == USART3){
+		if((USART3_RX_STA&(1<<15))==0)//接收完的一批数据,还没有被处理,则不再接收其他数据
+		{
+			if(USART3_RX_STA<USART3_MAX_RECV_LEN)	//还可以接收数据
+			{
+				if(USART3_RX_STA==0) 
+				{
+					cflag = 1;
+					UsartTick = uwTick;
+				}
+				else if(uwTick - UsartTick > 10 && cflag == 1){
+					cflag = 0;
+					USART3_RX_STA|=1<<15;	//标记接收完成
+				}
+				USART3_RX_BUF[USART3_RX_STA++]=usart_rx_char;	//记录接收到的值	 
+			}else 
+			{
+				USART3_RX_STA|=1<<15;				//强制标记接收完成
+			}
+		}
+		HAL_UART_Receive_IT(&huart3,&usart_rx_char,1);
+	}
+}
+
+//显示GPS定位信息 
+static void Gps_Msg_Show(void)
+{
+ 	float tp; 
+	tp=gpsx.longitude;	
+	printf("Longitude:%.5f %1c\r\n",tp/=100000,gpsx.ewhemi);//得到经度字符串 	   
+	tp=gpsx.latitude;	
+	printf("Latitude:%.5f %1c \r\n",tp/=100000,gpsx.nshemi);//得到纬度字符串
+	tp=gpsx.altitude;	   
+	printf("Altitude:%.1fm \r\n",tp/=10);//得到高度字符串		   
+	tp=gpsx.speed;	   
+	printf("Speed:%.3fkm/h \r\n",tp/=1000);//得到速度字符串	
+	if(gpsx.fixmode<=3)														//定位状态
+	{  
+		printf("Fix Mode:%s\r\n",fixmode_tbl[gpsx.fixmode]);  
+	}
+	printf("Valid satellite:%02d\r\n",gpsx.posslnum);//用于定位的卫星数
+	printf("Visible satellite:%02d\r\n",gpsx.svnum%100);//可见卫星数		
+	printf("UTC Date:%04d/%02d/%02d   \r\n",gpsx.utc.year,gpsx.utc.month,gpsx.utc.date); //显示UTC日期
+	printf("UTC Time:%02d:%02d:%02d   \r\n",gpsx.utc.hour,gpsx.utc.min,gpsx.utc.sec);//显示UTC时间
+}
 /* USER CODE END Application */
 

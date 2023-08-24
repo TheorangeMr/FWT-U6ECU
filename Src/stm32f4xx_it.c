@@ -48,7 +48,7 @@
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
 
-uint8_t rx_len = 0;
+__IO uint8_t rx_len = 0;
 extern RingBuffer *p_uart2_rxbuf;
 extern uint8_t rx_4g_buffer[128];
 extern osSemaphoreId Onenet_tx_BinarySemHandle;

@@ -33,6 +33,7 @@
 #include "atk_m750.h"
 #include "RingBuffer.h"
 #include "string.h"
+#include "gps.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -142,7 +143,7 @@ int main(void)
 	
 	HAL_GPIO_WritePin(GPIOB,GPIO_PIN_3,GPIO_PIN_RESET);
 	HAL_GPIO_WritePin(GPIOA,GPIO_PIN_15,GPIO_PIN_RESET);
-	
+
   printf("外设初始化\r\n");
   /* USER CODE END 2 */
 

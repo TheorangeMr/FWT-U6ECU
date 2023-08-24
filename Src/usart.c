@@ -22,6 +22,8 @@
 
 /* USER CODE BEGIN 0 */
 
+extern uint8_t USART3_RX_BUF[USART3_MAX_RECV_LEN]; 				//接收缓冲,最大USART3_MAX_RECV_LEN个字节.
+uint8_t usart_rx_char;
 uint8_t rx_4g_buffer[128] = {0};
 
 int fputc(int ch , FILE *f)
@@ -114,7 +116,7 @@ void MX_USART3_UART_Init(void)
 
   /* USER CODE END USART3_Init 1 */
   huart3.Instance = USART3;
-  huart3.Init.BaudRate = 115200;
+  huart3.Init.BaudRate = 9600;
   huart3.Init.WordLength = UART_WORDLENGTH_8B;
   huart3.Init.StopBits = UART_STOPBITS_1;
   huart3.Init.Parity = UART_PARITY_NONE;
@@ -126,7 +128,8 @@ void MX_USART3_UART_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN USART3_Init 2 */
-
+	__HAL_UART_ENABLE_IT(&huart3,UART_IT_RXNE);
+	HAL_UART_Receive_IT(&huart3,&usart_rx_char,1);
   /* USER CODE END USART3_Init 2 */
 
 }
@@ -344,5 +347,19 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
 }
 
 /* USER CODE BEGIN 1 */
-
+void usart3_init(uint32_t bound)
+{  
+  huart3.Instance = USART3;
+  huart3.Init.BaudRate = bound;
+  huart3.Init.WordLength = UART_WORDLENGTH_8B;
+  huart3.Init.StopBits = UART_STOPBITS_1;
+  huart3.Init.Parity = UART_PARITY_NONE;
+  huart3.Init.Mode = UART_MODE_TX_RX;
+  huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart3.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
 /* USER CODE END 1 */
