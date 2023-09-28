@@ -57,6 +57,7 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
 
+void Can_Send_Msg(uint8_t ucStdId, uint8_t* msg, uint8_t len);
 static void OneNet_Receive(uint8_t *Send_date,uint8_t device_id,uint8_t dat_len);
 static void OneNet_FillBuf(uint8_t *buff,uint8_t devicer_id);
 static void Gps_Msg_Show(void);

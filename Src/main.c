@@ -24,6 +24,7 @@
 #include "dma.h"
 #include "fatfs.h"
 #include "sdio.h"
+#include "tim.h"
 #include "usart.h"
 #include "gpio.h"
 
@@ -133,6 +134,8 @@ int main(void)
   MX_USART2_UART_Init();
   MX_USART3_UART_Init();
   MX_ADC1_Init();
+  MX_TIM2_Init();
+  MX_TIM14_Init();
   /* USER CODE BEGIN 2 */
 	
 	//nine-axis dvice initialize

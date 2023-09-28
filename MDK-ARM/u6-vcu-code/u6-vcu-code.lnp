@@ -10,6 +10,7 @@
 "u6-vcu-code\sd_diskio.o"
 "u6-vcu-code\fatfs.o"
 "u6-vcu-code\sdio.o"
+"u6-vcu-code\tim.o"
 "u6-vcu-code\usart.o"
 "u6-vcu-code\stm32f4xx_it.o"
 "u6-vcu-code\stm32f4xx_hal_msp.o"

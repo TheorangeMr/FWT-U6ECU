@@ -73,6 +73,7 @@ extern CAN_HandleTypeDef hcan1;
 extern DMA_HandleTypeDef hdma_sdio_rx;
 extern DMA_HandleTypeDef hdma_sdio_tx;
 extern SD_HandleTypeDef hsd;
+extern TIM_HandleTypeDef htim2;
 extern DMA_HandleTypeDef hdma_usart1_tx;
 extern DMA_HandleTypeDef hdma_usart2_rx;
 extern DMA_HandleTypeDef hdma_usart3_rx;
@@ -217,6 +218,7 @@ void CAN1_TX_IRQHandler(void)
 {
   /* USER CODE BEGIN CAN1_TX_IRQn 0 */
 
+//	printf("caninterrupt\r\n");
   /* USER CODE END CAN1_TX_IRQn 0 */
   HAL_CAN_IRQHandler(&hcan1);
   /* USER CODE BEGIN CAN1_TX_IRQn 1 */
@@ -253,6 +255,20 @@ void TIM1_UP_TIM10_IRQHandler(void)
 }
 
 /**
+  * @brief This function handles TIM2 global interrupt.
+  */
+void TIM2_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM2_IRQn 0 */
+
+  /* USER CODE END TIM2_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim2);
+  /* USER CODE BEGIN TIM2_IRQn 1 */
+
+  /* USER CODE END TIM2_IRQn 1 */
+}
+
+/**
   * @brief This function handles USART2 global interrupt.
   */
 void USART2_IRQHandler(void)
@@ -268,15 +284,18 @@ void USART2_IRQHandler(void)
 		temp = __HAL_DMA_GET_COUNTER(&hdma_usart2_rx);
 		rx_len = sizeof(rx_4g_buffer)-temp;
 		HAL_UART_Receive_DMA(&huart2,rx_4g_buffer,sizeof(rx_4g_buffer));
-		if(osEventFlagsGet (Vcu_Event1Handle)&EVENTBIT_1)
-		{
+		if(osEventFlagsGet (Vcu_Event1Handle)&EVENTBIT_1){
 			if((strstr((char *)rx_4g_buffer, "+CLK") == ((char *)rx_4g_buffer+2))||\
-				(strstr((char *)rx_4g_buffer, "+CSQ:") == ((char *)rx_4g_buffer+2)))
-			{
-				osMessageQueuePut (UsartQueueHandle, rx_4g_buffer, NULL,0);				
+				(strstr((char *)rx_4g_buffer, "+CSQ:") == ((char *)rx_4g_buffer+2))){
+					if(rx_len < 64){
+						osMessageQueuePut (UsartQueueHandle, rx_4g_buffer, NULL,0);	
+					}
+			}else{
+			RingBuffer_In(p_uart2_rxbuf, rx_4g_buffer, strlen((char *)rx_4g_buffer));            //放入缓存
 			}
-		}
-		RingBuffer_In(p_uart2_rxbuf, rx_4g_buffer, strlen((char *)rx_4g_buffer));            //放入缓存
+		}else{
+			RingBuffer_In(p_uart2_rxbuf, rx_4g_buffer, strlen((char *)rx_4g_buffer));            //放入缓存
+			}
 		osSemaphoreRelease (Onenet_tx_BinarySemHandle);
 	}
   /* USER CODE END USART2_IRQn 0 */

@@ -66,7 +66,7 @@ void MX_CAN1_Init(void)
 	CAN_FilterInitStructure.FilterScale = CAN_FILTERSCALE_32BIT;
 	HAL_CAN_ConfigFilter(&hcan1,&CAN_FilterInitStructure);
 	HAL_CAN_ActivateNotification(&hcan1,CAN_IT_RX_FIFO0_MSG_PENDING);
-//	__HAL_CAN_ENABLE_IT(&hcan1,CAN_IT_RX_FIFO0_MSG_PENDING);
+//	__HAL_CAN_ENABLE_IT(&hcan1,CAN_IT_RX_FIFO0_MSG_PENDING);|CAN_IT_TX_MAILBOX_EMPTY
   HAL_CAN_Start(&hcan1);
   /* USER CODE END CAN1_Init 2 */
 

@@ -24,7 +24,7 @@ typedef struct
 } _dtu_atcmd_st;
 
 typedef struct {
-    uint16_t year;    
+    uint8_t year;    
     uint8_t month;
     uint8_t day;
     uint8_t hour;

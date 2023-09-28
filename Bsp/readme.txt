@@ -37,3 +37,9 @@ vcu-v3.2
 		  3.4g-dtu，获取北京时间，和4g信号强度
 2023.8.23
 移植GPS模块驱动，采集gps信息
+
+
+2023.9.28
+can发送采用函数为共享函数
+问题：在Can_Send_Msg(uint8_t ucStdId, uint8_t* msg, uint8_t len)中在第一行添加osKernelLock ();
+会导致程序进入硬件中断错误。

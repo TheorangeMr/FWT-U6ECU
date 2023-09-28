@@ -61,6 +61,7 @@ u6-vcu-code\main.o: ../Middlewares/Third_Party/FatFs/src/ff_gen_drv.h
 u6-vcu-code\main.o: ../Middlewares/Third_Party/FatFs/src/diskio.h
 u6-vcu-code\main.o: ../Inc/sd_diskio.h
 u6-vcu-code\main.o: ../Inc/sdio.h
+u6-vcu-code\main.o: ../Inc/tim.h
 u6-vcu-code\main.o: ../Inc/usart.h
 u6-vcu-code\main.o: ../Inc/gpio.h
 u6-vcu-code\main.o: ../Bsp/wit_c_sdk/wit_c_sdk.h
