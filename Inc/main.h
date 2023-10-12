@@ -65,6 +65,18 @@ static void Gps_Msg_Show(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define oil_yycj_Pin GPIO_PIN_0
+#define oil_yycj_GPIO_Port GPIOC
+#define xjwy2_Pin GPIO_PIN_1
+#define xjwy2_GPIO_Port GPIOC
+#define xjwy1_Pin GPIO_PIN_2
+#define xjwy1_GPIO_Port GPIOC
+#define xjwy4_Pin GPIO_PIN_4
+#define xjwy4_GPIO_Port GPIOC
+#define xjwy3_Pin GPIO_PIN_0
+#define xjwy3_GPIO_Port GPIOB
+#define batter_Pin GPIO_PIN_1
+#define batter_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 

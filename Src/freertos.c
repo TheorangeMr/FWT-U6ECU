@@ -45,12 +45,15 @@ typedef StaticEventGroup_t osStaticEventGroupDef_t;
 /* USER CODE BEGIN PD */
 
 
-
 #define XJWY_StdId							0x01
 #define GPS_StdId								0x02
 #define DTU_StdId								0x03       //0x03,0x04     clk,csq
+#define OADC_StdId              0x05
 #define Wit_StdId   						0x51      //0x51,0x52,0x53  angle_value-x,y,z   
 #define Wit_dat   							((uint32_t)0x50) //标识符ID：0x50    (标准帧)
+
+
+
 
 #define Wit_Device_ID        ((uint8_t)0x01)
 #define XJ1_Device_ID        ((uint8_t)0x02)             //油门踏板
@@ -65,8 +68,9 @@ typedef StaticEventGroup_t osStaticEventGroupDef_t;
 #define   Wit_Dat_Handle_Delay          30
 #define   Can_Rx_Handle_Delay           1
 #define   OD_Handle_Delay               200
+#define   ADC_Handle_Delay              20000
 #define   DTU_Signal_Delay              20000
-#define   GPS_Delay             				 1005
+#define   GPS_Delay             				1005
 
 /*
 *************************************************************************
@@ -94,7 +98,7 @@ typedef StaticEventGroup_t osStaticEventGroupDef_t;
 #define MT_EVENTBIT_1	(1<<0)			
 #define MT_EVENTBIT_2	(1<<1)			
 #define MT_EVENTBIT_3	(1<<2)		  
-#define MT_EVENTBIT_4	(1<<3)	
+#define MT_EVENTBIT_4	(1<<3)
 
 /* USER CODE END PD */
 
@@ -108,6 +112,10 @@ typedef StaticEventGroup_t osStaticEventGroupDef_t;
 /* USER CODE BEGIN Variables */
 
 CAN_RxHeaderTypeDef RxMessage;
+
+//IWDG
+extern IWDG_HandleTypeDef hiwdg;
+
 
 //usart1,2,3
 extern UART_HandleTypeDef huart1;
@@ -125,7 +133,9 @@ extern uint8_t rx_flag;
 extern uint8_t usart_rx_char;
 //adc
 extern ADC_HandleTypeDef hadc1;
-uint8_t ADC1_Flag = 0;
+extern ADC_HandleTypeDef hadc2;
+__IO uint8_t ADC1_Flag = 0;
+__IO uint8_t ADC2_Flag = 0;
 
 //九轴传感器
 extern CAN_HandleTypeDef hcan1;
@@ -176,9 +186,10 @@ typedef struct
 	uint8_t xjwy2_dat;
 	uint8_t xjwy3_dat;
 	uint8_t xjwy4_dat;
+	uint8_t oilyy_dat[2];
 }_wy_dat;
 
-_wy_dat Wy_dat = {0,0,0,0,0};
+_wy_dat Wy_dat = {0,0,0,0,0,0};
 
 //GPS
 
@@ -248,6 +259,20 @@ const osThreadAttr_t GPS_Get_Task_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityLow3,
 };
+/* Definitions for IWDG_Task */
+osThreadId_t IWDG_TaskHandle;
+const osThreadAttr_t IWDG_Task_attributes = {
+  .name = "IWDG_Task",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityHigh,
+};
+/* Definitions for Otheradc_task */
+osThreadId_t Otheradc_taskHandle;
+const osThreadAttr_t Otheradc_task_attributes = {
+  .name = "Otheradc_task",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
 /* Definitions for UsartQueue */
 osMessageQueueId_t UsartQueueHandle;
 const osMessageQueueAttr_t UsartQueue_attributes = {
@@ -299,6 +324,8 @@ void DTU_Init_Handle(void *argument);
 void Signal_4G_Handle(void *argument);
 void GPS_Init_Handle(void *argument);
 void GPS_Get_Handle(void *argument);
+void IWDG_Handle(void *argument);
+void Oadc_Handle(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -364,6 +391,12 @@ void MX_FREERTOS_Init(void) {
   /* creation of GPS_Get_Task */
   GPS_Get_TaskHandle = osThreadNew(GPS_Get_Handle, NULL, &GPS_Get_Task_attributes);
 
+  /* creation of IWDG_Task */
+  IWDG_TaskHandle = osThreadNew(IWDG_Handle, NULL, &IWDG_Task_attributes);
+
+  /* creation of Otheradc_task */
+  Otheradc_taskHandle = osThreadNew(Oadc_Handle, NULL, &Otheradc_task_attributes);
+
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
 	
@@ -377,7 +410,7 @@ void MX_FREERTOS_Init(void) {
 	if(NULL != Wit_dat_TaskHandle)/* 创建成功 */
 		printf("Wit_dat_TaskHandle任务创建成功!\r\n");
 	else
-		printf("Wit_dat_TaskHandle任务创建失败!\r\n");
+		printf(" Wit_dat_TaskHandle任务创建失败!\r\n");
 	if(NULL != Can_Rx_TaskHandle)/* 创建成功 */
 		printf("Can_Rx_TaskHandle任务创建成功!\r\n");
 	else
@@ -398,14 +431,22 @@ void MX_FREERTOS_Init(void) {
 		printf("Signal_4G_TaskHandle任务创建成功!\r\n");
 	else
 		printf(" Signal_4G_TaskHandle任务创建失败!\r\n");
-		if(NULL != GPS_Init_TaskHandle)/* 创建成功 */
+	if(NULL != GPS_Init_TaskHandle)/* 创建成功 */
 		printf("GPS_Init_TaskHandle任务创建成功!\r\n");
 	else
-		printf("GPS_Init_TaskHandle任务创建失败!\r\n");
-		if(NULL != GPS_Get_TaskHandle)/* 创建成功 */
+		printf(" GPS_Init_TaskHandle任务创建失败!\r\n");
+	if(NULL != GPS_Get_TaskHandle)/* 创建成功 */
 		printf("GPS_Get_TaskHandle任务创建成功!\r\n");
 	else
 		printf(" GPS_Get_TaskHandle任务创建失败!\r\n");
+	if(NULL != IWDG_TaskHandle)/* 创建成功 */
+		printf("IWDG_TaskHandle任务创建成功!\r\n");
+	else
+		printf(" IWDG_TaskHandle任务创建失败!\r\n");
+	if(NULL != Otheradc_taskHandle)/* 创建成功 */
+		printf("Otheradc_taskHandle任务创建成功!\r\n");
+	else
+		printf(" Otheradc_taskHandle任务创建失败!\r\n");
   /* USER CODE END RTOS_THREADS */
 
   /* Create the event(s) */
@@ -656,42 +697,47 @@ void OilDisplayment_Handle(void *argument)
 {
   /* USER CODE BEGIN OilDisplayment_Handle */
   /* Infinite loop */
-	extern uint32_t adc1_value[50];
-	uint32_t oildisplay_value,xjwy_1,xjwy_2,xjwy_3,xjwy_4;
+	extern uint32_t adc1_value[60];
+	uint32_t oildisplay_value,xjwy_1,xjwy_2,xjwy_3,xjwy_4,oil_yy;
 	uint8_t oildisplay[64] = {0};
 	uint8_t StdId = XJWY_StdId;
-	uint8_t xjwy_msg[5] = {0};
+	uint8_t xjwy_msg[7] = {0};
   for(;;)
   {
 		if(ADC1_Flag == 1)
 		{
 			ADC1_Flag = 0;
       oildisplay_value = 0;
-			xjwy_1 = 0; xjwy_2 = 0; xjwy_3 = 0; xjwy_4 = 0;
-			for(uint8_t i=0;i<50;)
+			xjwy_1 = 0; xjwy_2 = 0; xjwy_3 = 0; xjwy_4 = 0; oil_yy = 0 ;
+			for(uint8_t i=0;i<60;)
 		  {
-			  oildisplay_value+=adc1_value[i++];
 			  xjwy_1+=adc1_value[i++];
 			  xjwy_2+=adc1_value[i++];
 				xjwy_3+=adc1_value[i++];
 			  xjwy_4+=adc1_value[i++];
+				oil_yy+=adc1_value[i++];
+				oildisplay_value+=adc1_value[i++];
 		  }
 			Wy_dat.displacement_dat = oildisplay_value*5/4096;    //oildisplay_value/10*50/4096
 			Wy_dat.xjwy1_dat = xjwy_1*15/4096;
 			Wy_dat.xjwy2_dat = xjwy_2*15/4096;
 			Wy_dat.xjwy3_dat = xjwy_3*15/4096;
 			Wy_dat.xjwy4_dat = xjwy_4*15/4096;
+			Wy_dat.oilyy_dat[0] = (int)(oil_yy*2000/4096)/100;
+			Wy_dat.oilyy_dat[1] = (int)(oil_yy*2000/4096)%100;
 //			printf("%d\r\n",Wy_dat.displacement_dat);
 			xjwy_msg[0] = Wy_dat.displacement_dat;
 			xjwy_msg[1] = Wy_dat.xjwy1_dat;
 			xjwy_msg[2] = Wy_dat.xjwy2_dat;
 			xjwy_msg[3] = Wy_dat.xjwy3_dat;
 			xjwy_msg[4] = Wy_dat.xjwy4_dat;
+			xjwy_msg[5] = Wy_dat.oilyy_dat[0];
+			xjwy_msg[6] = Wy_dat.oilyy_dat[1];
 			if((osEventFlagsGet (Vcu_Event1Handle)&EVENTBIT_6) == EVENTBIT_6&&dtu_device1.Onenet_Off_flag == 0){
 			OneNet_Receive(oildisplay,XJ1_Device_ID,sizeof(oildisplay));
 			}
-			HAL_ADC_Start_DMA(&hadc1,adc1_value,sizeof(adc1_value)/4);
 			Can_Send_Msg(StdId, xjwy_msg, sizeof(xjwy_msg));
+			HAL_ADC_Start_DMA(&hadc1,adc1_value,sizeof(adc1_value)/4);
 		}
     osDelay(OD_Handle_Delay);
   }
@@ -860,6 +906,86 @@ void GPS_Get_Handle(void *argument)
   /* USER CODE END GPS_Get_Handle */
 }
 
+/* USER CODE BEGIN Header_IWDG_Handle */
+/**
+* @brief Function implementing the IWDG_Task thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_IWDG_Handle */
+void IWDG_Handle(void *argument)
+{
+  /* USER CODE BEGIN IWDG_Handle */
+  /* Infinite loop */
+  for(;;)
+  {
+		__HAL_IWDG_RELOAD_COUNTER(&hiwdg);
+    osDelay(100);
+  }
+  /* USER CODE END IWDG_Handle */
+}
+
+/* USER CODE BEGIN Header_Oadc_Handle */
+/**
+* @brief Function implementing the Otheradc_task thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_Oadc_Handle */
+void Oadc_Handle(void *argument)
+{
+  /* USER CODE BEGIN Oadc_Handle */
+  /* Infinite loop */
+
+	uint8_t StdId = OADC_StdId;
+	uint8_t oadc_msg[2] = {0};
+  uint32_t battery_capacity = 0,oil_capacity = 0;
+	
+	extern uint32_t adc2_value[20];
+  for(;;)
+  {
+		if(ADC2_Flag == 1)
+		{
+			ADC2_Flag = 0;
+			for(uint8_t i=0;i<20;)
+		  {
+				battery_capacity += adc2_value[i++];
+				oil_capacity += adc2_value[i++];
+		  }
+			battery_capacity = battery_capacity*330/4096;
+			if(battery_capacity >3235){
+				oadc_msg[0] = 6;
+			}
+			else if( battery_capacity > 3160&&battery_capacity < 3235){
+				oadc_msg[0] = 5;
+			}
+			else if( battery_capacity > 3080&&battery_capacity < 3160){
+				oadc_msg[0] = 4;
+			}
+			else if( battery_capacity > 2990&&battery_capacity < 3080){
+				oadc_msg[0] = 3;
+			}
+			else if( battery_capacity > 2910&&battery_capacity < 2990){
+				oadc_msg[0] = 2;
+			}
+			else if( battery_capacity > 2840&&battery_capacity < 2910){
+				oadc_msg[0] = 1;
+			}
+			else if(battery_capacity < 2810){
+				oadc_msg[0] = 0;
+			}
+			oadc_msg[1] = 0;
+//			if((osEventFlagsGet (Vcu_Event1Handle)&EVENTBIT_6) == EVENTBIT_6&&dtu_device1.Onenet_Off_flag == 0){
+//			OneNet_Receive(oildisplay,XJ1_Device_ID,sizeof(oildisplay));
+//			}
+			Can_Send_Msg(StdId, oadc_msg, sizeof(oadc_msg));
+			HAL_ADC_Start_DMA(&hadc2,adc2_value,sizeof(adc2_value)/4);
+		}
+    osDelay(ADC_Handle_Delay);//
+  }
+  /* USER CODE END Oadc_Handle */
+}
+
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
@@ -1004,7 +1130,7 @@ static void Gps_Msg_Show(void)
 ////	printf("Latitude:%.5f %1c \r\n",tp/=100000,gpsx.nshemi);//得到纬度字符串
 //	tp=gpsx.altitude;	   
 ////	printf("Altitude:%.1fm \r\n",tp/=10);//得到高度字符串
-	speedfloat_tx.value = gpsx.speed/1000;	   
+	speedfloat_tx.value = gpsx.speed/1000;
 //	printf("Speed:%.3fkm/h \r\n",speedfloat_tx.value);//得到速度字符串
 	if(gpsx.fixmode<=3)														//定位状态
 	{  

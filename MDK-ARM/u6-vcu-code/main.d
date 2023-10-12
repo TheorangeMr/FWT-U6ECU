@@ -30,6 +30,7 @@ u6-vcu-code\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_can.h
 u6-vcu-code\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash.h
 u6-vcu-code\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash_ex.h
 u6-vcu-code\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_flash_ramfunc.h
+u6-vcu-code\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_iwdg.h
 u6-vcu-code\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr.h
 u6-vcu-code\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr_ex.h
 u6-vcu-code\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_sd.h
@@ -60,6 +61,7 @@ u6-vcu-code\main.o: ../Inc/bsp_driver_sd.h
 u6-vcu-code\main.o: ../Middlewares/Third_Party/FatFs/src/ff_gen_drv.h
 u6-vcu-code\main.o: ../Middlewares/Third_Party/FatFs/src/diskio.h
 u6-vcu-code\main.o: ../Inc/sd_diskio.h
+u6-vcu-code\main.o: ../Inc/iwdg.h
 u6-vcu-code\main.o: ../Inc/sdio.h
 u6-vcu-code\main.o: ../Inc/tim.h
 u6-vcu-code\main.o: ../Inc/usart.h
