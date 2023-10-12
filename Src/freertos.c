@@ -221,7 +221,7 @@ const osThreadAttr_t Can_Rx_Task_attributes = {
 osThreadId_t RB_Read_TaskHandle;
 const osThreadAttr_t RB_Read_Task_attributes = {
   .name = "RB_Read_Task",
-  .stack_size = 512 * 4,
+  .stack_size = 1024 * 4,
   .priority = (osPriority_t) osPriorityLow4,
 };
 /* Definitions for OilDisplay_Task */
@@ -647,6 +647,7 @@ void RingBuffer_Read_Handle(void *argument)
 					Clkvalue[4] = dtu_device1.Clk_value.minute;
 					Clkvalue[5] = dtu_device1.Clk_value.second;
 					Can_Send_Msg(StdId, Clkvalue,sizeof(Clkvalue));
+					printf("%d,%d,%d,%d,%d,%d\r\n",Clkvalue[0],Clkvalue[1],Clkvalue[2],Clkvalue[3],Clkvalue[4],Clkvalue[5]);
 			}
 			else if((strstr((char *)receive, "+CSQ") == ((char *)receive+2)))
 			{
@@ -675,6 +676,7 @@ void RingBuffer_Read_Handle(void *argument)
 					}
 				}osKernelUnlock ();
 				Can_Send_Msg(StdId+1, &dtu_device1.Network_size, sizeof(dtu_device1.Network_size));
+				printf("Network_size\r\n");
 			 }
 			}
 		  vTaskDelay(50);	
@@ -1127,13 +1129,13 @@ static void Gps_Msg_Show(void)
 //	tp=gpsx.altitude;	   
 ////	printf("Altitude:%.1fm \r\n",tp/=10);//得到高度字符串
 	speedfloat_tx.value = gpsx.speed/1000;
-//	printf("Speed:%.3fkm/h \r\n",speedfloat_tx.value);//得到速度字符串
-	if(gpsx.fixmode<=3)														//定位状态
-	{  
-		printf("Fix Mode:%s\r\n",fixmode_tbl[gpsx.fixmode]);  
-	}
-	printf("Valid satellite:%02d\r\n",gpsx.posslnum);//用于定位的卫星数
-	printf("Visible satellite:%02d\r\n",gpsx.svnum%100);//可见卫星数		
+	printf("Speed:%.3fkm/h \r\n",speedfloat_tx.value);//得到速度字符串
+//	if(gpsx.fixmode<=3)														//定位状态
+//	{  
+//		printf("Fix Mode:%s\r\n",fixmode_tbl[gpsx.fixmode]);  
+//	}
+//	printf("Valid satellite:%02d\r\n",gpsx.posslnum);//用于定位的卫星数
+//	printf("Visible satellite:%02d\r\n",gpsx.svnum%100);//可见卫星数		
 	printf("UTC Date:%04d/%02d/%02d   \r\n",gpsx.utc.year,gpsx.utc.month,gpsx.utc.date); //显示UTC日期
 	printf("UTC Time:%02d:%02d:%02d   \r\n",gpsx.utc.hour,gpsx.utc.min,gpsx.utc.sec);//显示UTC时间
 		if((osEventFlagsGet (Vcu_Event1Handle)&EVENTBIT_9) == EVENTBIT_9&&dtu_device1.Onenet_Off_flag == 0){

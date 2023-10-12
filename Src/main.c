@@ -161,37 +161,37 @@ int main(void)
 	HAL_GPIO_WritePin(GPIOB,GPIO_PIN_3,GPIO_PIN_RESET);
 	HAL_GPIO_WritePin(GPIOA,GPIO_PIN_15,GPIO_PIN_RESET);
 
-//	//挂载文件系统
-//	res_flash = f_mount(&fs,"1:",1);
-//  if(res_flash!=FR_OK)
-//  {
-//    printf("！！外部SD挂载文件系统失败。(%d)\r\n",res_flash);
-//    printf("！！可能原因：SDIO_SD初始化不成功。\r\n");
-//		if(res_flash == FR_NO_FILESYSTEM)
-//		{
-//			res_flash = f_mkfs("fwt:", FM_FAT32, 0, work, sizeof(work));
-//			if(res_flash == FR_OK)
-//			{
-//				printf("》SD已成功格式化文件系统。\r\n");
-//				/* 格式化后，先取消挂载 */
-//				res_flash = f_mount(NULL,"1:",1);	
-//				/* 重新挂载	*/			
-//				res_flash = f_mount(&fs,"1:",1);
-//				goto	repeat;
-//			}
-//			else
-//			{
-//				printf("《《格式化失败。》》\r\n");
-//			}
-//		}
-//		goto	repeat;		
-//    repeat:
-//		;
-//  }
-//  else
-//  {
-//    printf("》文件系统挂载成功\r\n");
-//  }
+	//挂载文件系统
+	res_flash = f_mount(&fs,"1:",1);
+  if(res_flash!=FR_OK)
+  {
+    printf("！！外部SD挂载文件系统失败。(%d)\r\n",res_flash);
+    printf("！！可能原因：SDIO_SD初始化不成功。\r\n");
+		if(res_flash == FR_NO_FILESYSTEM)
+		{
+			res_flash = f_mkfs("fwt:", FM_FAT32, 0, work, sizeof(work));
+			if(res_flash == FR_OK)
+			{
+				printf("》SD已成功格式化文件系统。\r\n");
+				/* 格式化后，先取消挂载 */
+				res_flash = f_mount(NULL,"1:",1);	
+				/* 重新挂载	*/			
+				res_flash = f_mount(&fs,"1:",1);
+				goto	repeat;
+			}
+			else
+			{
+				printf("《《格式化失败。》》\r\n");
+			}
+		}
+		goto	repeat;		
+    repeat:
+		;
+  }
+  else
+  {
+    printf("》文件系统挂载成功\r\n");
+  }
   printf("外设初始化\r\n");
   /* USER CODE END 2 */
 

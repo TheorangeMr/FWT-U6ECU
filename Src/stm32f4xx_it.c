@@ -278,7 +278,6 @@ void USART2_IRQHandler(void)
 	uint32_t temp = 0;
 	if(__HAL_UART_GET_FLAG(&huart2,UART_FLAG_IDLE) != RESET)
 	{
-		printf("usart2\r\n");
 		__HAL_UART_CLEAR_IDLEFLAG(&huart2);
 		temp = USART2->SR;
 		temp = USART2->DR;
@@ -289,7 +288,7 @@ void USART2_IRQHandler(void)
 		if(osEventFlagsGet (Vcu_Event1Handle)&EVENTBIT_1){
 			if((strstr((char *)rx_4g_buffer, "+CLK") == ((char *)rx_4g_buffer+2))||\
 				(strstr((char *)rx_4g_buffer, "+CSQ:") == ((char *)rx_4g_buffer+2))){
-					if(rx_len < 64){
+					if(rx_len <= 64){
 						osMessageQueuePut (UsartQueueHandle, rx_4g_buffer, NULL,0);	
 					}
 			}else{
