@@ -423,11 +423,7 @@ void MX_FREERTOS_Init(void) {
 		printf("OilDisplay_TaskHandle任务创建成功!\r\n");
 	else
 		printf(" OilDisplay_TaskHandle任务创建失败!\r\n");
-	if(NULL != DTU_Init_TaskHandle)/* 创建成功 */
-		printf("DTU_Init_TaskHandle任务创建成功!\r\n");
-	else
-		printf(" DTU_Init_TaskHandle任务创建失败!\r\n");
-		if(NULL != Signal_4G_TaskHandle)/* 创建成功 */
+	if(NULL != Signal_4G_TaskHandle)/* 创建成功 */
 		printf("Signal_4G_TaskHandle任务创建成功!\r\n");
 	else
 		printf(" Signal_4G_TaskHandle任务创建失败!\r\n");

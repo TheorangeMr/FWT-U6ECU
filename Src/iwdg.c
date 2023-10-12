@@ -45,8 +45,8 @@ void MX_IWDG_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN IWDG_Init 2 */
-	__HAL_IWDG_START(&hiwdg);
-	__HAL_IWDG_RELOAD_COUNTER(&hiwdg);
+//	__HAL_IWDG_START(&hiwdg);
+//	__HAL_IWDG_RELOAD_COUNTER(&hiwdg);
   /* USER CODE END IWDG_Init 2 */
 
 }
