@@ -34,6 +34,7 @@
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
+typedef StaticTask_t osStaticThreadDef_t;
 typedef StaticSemaphore_t osStaticSemaphoreDef_t;
 typedef StaticEventGroup_t osStaticEventGroupDef_t;
 /* USER CODE BEGIN PTD */
@@ -47,9 +48,11 @@ typedef StaticEventGroup_t osStaticEventGroupDef_t;
 
 #define XJWY_StdId							0x01
 #define GPS_StdId								0x02
-#define DTU_StdId								0x03       //0x03,0x04     clk,csq
+#define CLK_StdId								0x03
+#define CLK_StdId2								0x13
+#define DTU_StdId								0x04       //0x04     csq
 #define OADC_StdId              0x05
-#define Wit_StdId   						0x51      //0x51,0x52,0x53  angle_value-x,y,z   
+#define Wit_StdId_xy   						0x51      //0x51,0x52  angle_value-xy,z
 #define Wit_dat   							((uint32_t)0x50) //标识符ID：0x50    (标准帧)
 
 
@@ -67,10 +70,11 @@ typedef StaticEventGroup_t osStaticEventGroupDef_t;
 */
 #define   Wit_Dat_Handle_Delay          30
 #define   Can_Rx_Handle_Delay           1
+#define   GPS_Handle_Delay              100
 #define   OD_Handle_Delay               200
 #define   ADC_Handle_Delay              20000
 #define   DTU_Signal_Delay              20000
-#define   GPS_Delay             				1005
+
 
 /*
 *************************************************************************
@@ -99,6 +103,15 @@ typedef StaticEventGroup_t osStaticEventGroupDef_t;
 #define MT_EVENTBIT_2	(1<<1)			
 #define MT_EVENTBIT_3	(1<<2)		  
 #define MT_EVENTBIT_4	(1<<3)
+
+#define CAN_EVENTBIT_1	(1<<0)			
+#define CAN_EVENTBIT_2	(1<<1)			
+#define CAN_EVENTBIT_3	(1<<2)		  
+#define CAN_EVENTBIT_4	(1<<3)
+#define CAN_EVENTBIT_5	(1<<4)			
+#define CAN_EVENTBIT_6	(1<<5)			
+#define CAN_EVENTBIT_7	(1<<6)		  
+#define CAN_EVENTBIT_8	(1<<7)		
 
 /* USER CODE END PD */
 
@@ -136,6 +149,7 @@ extern ADC_HandleTypeDef hadc1;
 extern ADC_HandleTypeDef hadc2;
 __IO uint8_t ADC1_Flag = 0;
 __IO uint8_t ADC2_Flag = 0;
+extern  uint32_t adc1_value[60];
 
 //九轴传感器
 extern CAN_HandleTypeDef hcan1;
@@ -149,15 +163,26 @@ union Anglefloat
 	uint8_t data[4];
 }Anglefloat_tx[3];
 
+union Accfloat
+{
+	float value;
+	uint8_t data[4];
+}Accfloat_tx[3];
+
 //can
-	uint8_t canrx_dat[8] = {0};
+uint8_t canrx_dat[8] = {0};
+uint8_t wit_msg[3][8] = {0};
+uint8_t xjwy_msg[7] = {0};
+uint8_t Clkvalue[6] = {0};
+uint8_t oadc_msg[2] = {0};
+
 
 //onenet
 extern const char sqpa[4][4];
 const char ONENET_COM_OFF[]="lc0218";
 const char ONENET_COM_ON[] = "lc2001";
 RingBuffer *p_uart2_rxbuf;
-_dtu_4g_device dtu_device1 = {0,0,0,0,{0}};
+_dtu_4g_device dtu_device1 = {0,0,0,0};
 
 
 //
@@ -199,6 +224,8 @@ union speed_float
 	uint8_t data[4];
 }speedfloat_tx;
 
+uint8_t UpdateTime_flag = 0;
+
 nmea_msg gpsx; 											//GPS信息
 const uint8_t *fixmode_tbl[4]={"Fail","Fail"," 2D "," 3D "};	//fix mode字符串 
 
@@ -221,7 +248,7 @@ const osThreadAttr_t Can_Rx_Task_attributes = {
 osThreadId_t RB_Read_TaskHandle;
 const osThreadAttr_t RB_Read_Task_attributes = {
   .name = "RB_Read_Task",
-  .stack_size = 1024 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityLow4,
 };
 /* Definitions for OilDisplay_Task */
@@ -273,6 +300,18 @@ const osThreadAttr_t Otheradc_task_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
+/* Definitions for CantxTask */
+osThreadId_t CantxTaskHandle;
+uint32_t CantxTaskBuffer[ 256 ];
+osStaticThreadDef_t CantxTaskControlBlock;
+const osThreadAttr_t CantxTask_attributes = {
+  .name = "CantxTask",
+  .cb_mem = &CantxTaskControlBlock,
+  .cb_size = sizeof(CantxTaskControlBlock),
+  .stack_mem = &CantxTaskBuffer[0],
+  .stack_size = sizeof(CantxTaskBuffer),
+  .priority = (osPriority_t) osPriorityAboveNormal,
+};
 /* Definitions for UsartQueue */
 osMessageQueueId_t UsartQueueHandle;
 const osMessageQueueAttr_t UsartQueue_attributes = {
@@ -310,6 +349,14 @@ const osEventFlagsAttr_t Mt_Event_attributes = {
   .cb_mem = &Mt_EventControlBlock,
   .cb_size = sizeof(Mt_EventControlBlock),
 };
+/* Definitions for Can_Event */
+osEventFlagsId_t Can_EventHandle;
+osStaticEventGroupDef_t Can_EventControlBlock;
+const osEventFlagsAttr_t Can_Event_attributes = {
+  .name = "Can_Event",
+  .cb_mem = &Can_EventControlBlock,
+  .cb_size = sizeof(Can_EventControlBlock),
+};
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -326,6 +373,7 @@ void GPS_Init_Handle(void *argument);
 void GPS_Get_Handle(void *argument);
 void IWDG_Handle(void *argument);
 void Oadc_Handle(void *argument);
+void Cantx_Handle(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -397,6 +445,9 @@ void MX_FREERTOS_Init(void) {
   /* creation of Otheradc_task */
   Otheradc_taskHandle = osThreadNew(Oadc_Handle, NULL, &Otheradc_task_attributes);
 
+  /* creation of CantxTask */
+  CantxTaskHandle = osThreadNew(Cantx_Handle, NULL, &CantxTask_attributes);
+
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
 	
@@ -443,6 +494,10 @@ void MX_FREERTOS_Init(void) {
 		printf("Otheradc_taskHandle任务创建成功!\r\n");
 	else
 		printf(" Otheradc_taskHandle任务创建失败!\r\n");
+	if(NULL != Cantx_Handle)/* 创建成功 */
+		printf("Cantx_Handle任务创建成功!\r\n");
+	else
+		printf(" Cantx_Handle任务创建失败!\r\n");
   /* USER CODE END RTOS_THREADS */
 
   /* Create the event(s) */
@@ -451,6 +506,9 @@ void MX_FREERTOS_Init(void) {
 
   /* creation of Mt_Event */
   Mt_EventHandle = osEventFlagsNew(&Mt_Event_attributes);
+
+  /* creation of Can_Event */
+  Can_EventHandle = osEventFlagsNew(&Can_Event_attributes);
 
   /* USER CODE BEGIN RTOS_EVENTS */
   /* add events, ... */
@@ -471,7 +529,6 @@ void Wit_Dat_Handle(void *argument)
   /* Infinite loop */
 	uint8_t i;
 	uint8_t wit_id = Wit_Device_ID;
-	uint8_t StdId = Wit_StdId;
 	uint8_t Send_date[128] = {0};
   for(;;)
   {
@@ -482,13 +539,13 @@ void Wit_Dat_Handle(void *argument)
 				for(i = 0; i < 3; i++)
 				{
 					wit_dat1.fAcc[i] = sReg[AX+i] / 32768.0f * 16.0f;
-					Anglefloat_tx[i].value = wit_dat1.fAcc[i];
 					wit_dat1.fGyro[i] = sReg[GX+i] / 32768.0f * 2000.0f;
 					wit_dat1.fAngle[i] = sReg[Roll+i] / 32768.0f * 180.0f;
+					Anglefloat_tx[i].value = wit_dat1.fAngle[i];
 				}
 				if(s_cDataUpdate & ACC_UPDATE)
 				{
-//					printf("acc:%.3f %.3f %.3f\r\n", wit_dat1.fAcc[0], wit_dat1.fAcc[1], wit_dat1.fAcc[2]);
+	//				printf("acc:%.3f %.3f %.3f\r\n", wit_dat1.fAcc[0], wit_dat1.fAcc[1], wit_dat1.fAcc[2]);
 					s_cDataUpdate &= ~ACC_UPDATE;
 				}
 				if(s_cDataUpdate & GYRO_UPDATE)
@@ -498,7 +555,7 @@ void Wit_Dat_Handle(void *argument)
 				}
 				if(s_cDataUpdate & ANGLE_UPDATE)
 				{
-//					printf("angle:%.3f %.3f %.3f\r\n", wit_dat1.fAngle[0], wit_dat1.fAngle[1], wit_dat1.fAngle[2]);
+					printf("angle:%.3f %.3f %.3f\r\n", wit_dat1.fAngle[0], wit_dat1.fAngle[1], wit_dat1.fAngle[2]);
 					s_cDataUpdate &= ~ANGLE_UPDATE;
 				}
 				if(s_cDataUpdate & MAG_UPDATE)
@@ -507,14 +564,31 @@ void Wit_Dat_Handle(void *argument)
 					s_cDataUpdate &= ~MAG_UPDATE;
 				}
 			}
-			
 			if((osEventFlagsGet (Vcu_Event1Handle)&EVENTBIT_7) == EVENTBIT_7&&dtu_device1.Onenet_Off_flag == 0){
 				OneNet_Receive(Send_date,wit_id,sizeof(Send_date));
 			}
-			for(i = 0; i < 3; i++)
-			{
-				Can_Send_Msg(StdId+i, Anglefloat_tx[i].data, sizeof(Anglefloat_tx[i].data));
+			for(i = 0; i < 8; i++){
+				if(i<4){
+					wit_msg[0][i] = Anglefloat_tx[0].data[i];
+				}else{
+					wit_msg[0][i] = Anglefloat_tx[1].data[i];
+				}
 			}
+			for(i = 0; i < 8; i++){
+				if(i<4){
+					wit_msg[1][i] = Anglefloat_tx[2].data[i];
+				}else{
+					wit_msg[1][i] = Accfloat_tx[0].data[i];
+				}
+			}
+			for(i = 0; i < 8; i++){
+				if(i<4){
+					wit_msg[2][i] = Accfloat_tx[1].data[i];
+				}else{
+					wit_msg[2][i] = Accfloat_tx[2].data[i];
+				}
+			}
+			osEventFlagsSet(Can_EventHandle, CAN_EVENTBIT_1);
 			vTaskDelay(Wit_Dat_Handle_Delay);
 		}
   }
@@ -532,10 +606,10 @@ void Can_Rx_Handle(void *argument)
 {
   /* USER CODE BEGIN Can_Rx_Handle */
   /* Infinite loop */
-
   for(;;)
   {
 		osSemaphoreAcquire(CanBinarySemHandle,osWaitForever);
+		
     osDelay(1);
   }
   /* USER CODE END Can_Rx_Handle */
@@ -554,12 +628,9 @@ void RingBuffer_Read_Handle(void *argument)
   /* Infinite loop */
 
 	uint8_t i = 0,j = 0;
-	uint8_t StdId = DTU_StdId;
-	char DTU_Tim[5] = {0};
 //	char *token;
 	char DTU_Csq[5] = {0};
 	uint8_t CSQvalue = 0;
-	uint8_t Clkvalue[6] = {0};
 	uint8_t receive[35] = {0};
   for(;;)
   {
@@ -575,79 +646,6 @@ void RingBuffer_Read_Handle(void *argument)
 			else if(strcmp((char *)receive,ONENET_COM_ON)== 0)
 			{
 				dtu_device1.Onenet_Off_flag = 0;				
-			}
-			else if((strstr((char *)receive, "+CLK") == ((char *)receive+2)))
-			{
-//				printf("%x\r\n",strstr((char *)receive, "+CLK:"));     相差10个字节
-//				printf("%x\r\n",receive);
-				osKernelLock ();
-					/* 获取第一个子字符串 */
-//					token = strtok((char *)(strstr((char *)receive, "+CLK:")), "\r\n");
-//				printf("%s\r\n",token);
-//				+CLK:"2023/08/22,17:23:57"    26
-				  for( i = 0;i<26;i++){
-						if(i>7&&i<10){
-							DTU_Tim[j] = receive[10+i];
-							j++;
-							if(j >= 2){
-								dtu_device1.Clk_value.year = atoi(DTU_Tim)-2000;
-								j = 0;								
-							}
-						}
-						else if(i>10&&i<13){
-							DTU_Tim[j] = receive[10+i];
-							j++;
-							if(j >= 2){
-								dtu_device1.Clk_value.month = atoi(DTU_Tim);
-								j = 0;									
-							}							
-						}
-						else if(i>13&&i<16){
-							DTU_Tim[j] = receive[10+i];
-							j++;
-							if(j >= 2){
-								dtu_device1.Clk_value.day = atoi(DTU_Tim);
-								j = 0;									
-							}							
-						}
-						else if(i>16&&i<19){
-							DTU_Tim[j] = receive[10+i];
-							j++;
-							if(j >= 2){
-								dtu_device1.Clk_value.hour = atoi(DTU_Tim);
-								j = 0;									
-							}							
-						}
-						else if(i>19&&i<22){
-							DTU_Tim[j] = receive[10+i];
-							j++;
-							if(j >= 2){
-								dtu_device1.Clk_value.minute = atoi(DTU_Tim);	
-								j = 0;									
-							}							
-						}
-						else if(i>22&&i<25){
-							DTU_Tim[j] = receive[10+i];
-							j++;
-							if(j >= 2){
-								dtu_device1.Clk_value.second = atoi(DTU_Tim);
-								j = 0;									
-							}							
-						}						
-					}
-					osKernelUnlock ();
-//					for(i = 0;i < 6;i++)
-//					{
-////						Clkvalue[i] = *((dtu_device1.Clk_value) + i);
-//					}
-					Clkvalue[0] = dtu_device1.Clk_value.year;
-					Clkvalue[1] = dtu_device1.Clk_value.month;
-					Clkvalue[2] = dtu_device1.Clk_value.day;
-					Clkvalue[3] = dtu_device1.Clk_value.hour;
-					Clkvalue[4] = dtu_device1.Clk_value.minute;
-					Clkvalue[5] = dtu_device1.Clk_value.second;
-					Can_Send_Msg(StdId, Clkvalue,sizeof(Clkvalue));
-					printf("%d,%d,%d,%d,%d,%d\r\n",Clkvalue[0],Clkvalue[1],Clkvalue[2],Clkvalue[3],Clkvalue[4],Clkvalue[5]);
 			}
 			else if((strstr((char *)receive, "+CSQ") == ((char *)receive+2)))
 			{
@@ -674,9 +672,10 @@ void RingBuffer_Read_Handle(void *argument)
 					dtu_device1.Network_size = 0;}
 					j = 0;				
 					}
-				}osKernelUnlock ();
-				Can_Send_Msg(StdId+1, &dtu_device1.Network_size, sizeof(dtu_device1.Network_size));
-				printf("Network_size\r\n");
+				}
+				osKernelUnlock ();
+				osEventFlagsSet(Can_EventHandle, CAN_EVENTBIT_8);
+//				printf("Network_size\r\n");
 			 }
 			}
 		  vTaskDelay(50);	
@@ -695,27 +694,23 @@ void OilDisplayment_Handle(void *argument)
 {
   /* USER CODE BEGIN OilDisplayment_Handle */
   /* Infinite loop */
-	extern uint32_t adc1_value[60];
 	uint32_t oildisplay_value,xjwy_1,xjwy_2,xjwy_3,xjwy_4,oil_yy;
 	uint8_t oildisplay[64] = {0};
-	uint8_t StdId = XJWY_StdId;
-	uint8_t xjwy_msg[7] = {0};
   for(;;)
   {
 		if(ADC1_Flag == 1)
 		{
 			ADC1_Flag = 0;
       oildisplay_value = 0;
-			xjwy_1 = 0; xjwy_2 = 0; xjwy_3 = 0; xjwy_4 = 0; oil_yy = 0 ;
-			for(uint8_t i=0;i<60;)
-		  {
+			xjwy_1 = 0; xjwy_2 = 0; xjwy_3 = 0; xjwy_4 = 0; oil_yy = 0;
+			for(uint8_t i=0;i<60;){
 			  xjwy_1+=adc1_value[i++];
 			  xjwy_2+=adc1_value[i++];
 				xjwy_3+=adc1_value[i++];
 			  xjwy_4+=adc1_value[i++];
-				oil_yy+=adc1_value[i++];
-				oildisplay_value+=adc1_value[i++];
-		  }
+  			oil_yy+=adc1_value[i++];
+				oildisplay_value += adc1_value[i++];
+			}
 			Wy_dat.displacement_dat = oildisplay_value*5/4096;    //oildisplay_value/10*50/4096
 			Wy_dat.xjwy1_dat = xjwy_1*15/4096;
 			Wy_dat.xjwy2_dat = xjwy_2*15/4096;
@@ -723,7 +718,6 @@ void OilDisplayment_Handle(void *argument)
 			Wy_dat.xjwy4_dat = xjwy_4*15/4096;
 			Wy_dat.oilyy_dat[0] = (int)(oil_yy*2000/4096)/100;
 			Wy_dat.oilyy_dat[1] = (int)(oil_yy*2000/4096)%100;
-//			printf("%d\r\n",Wy_dat.displacement_dat);
 			xjwy_msg[0] = Wy_dat.displacement_dat;
 			xjwy_msg[1] = Wy_dat.xjwy1_dat;
 			xjwy_msg[2] = Wy_dat.xjwy2_dat;
@@ -734,7 +728,7 @@ void OilDisplayment_Handle(void *argument)
 			if((osEventFlagsGet (Vcu_Event1Handle)&EVENTBIT_6) == EVENTBIT_6&&dtu_device1.Onenet_Off_flag == 0){
 			OneNet_Receive(oildisplay,XJ1_Device_ID,sizeof(oildisplay));
 			}
-			Can_Send_Msg(StdId, xjwy_msg, sizeof(xjwy_msg));
+			osEventFlagsSet(Can_EventHandle, CAN_EVENTBIT_6);
 			HAL_ADC_Start_DMA(&hadc1,adc1_value,sizeof(adc1_value)/4);
 		}
     osDelay(OD_Handle_Delay);
@@ -760,12 +754,13 @@ void DTU_Init_Handle(void *argument)
 		my_mem_init(SRAMIN);
 		p_uart2_rxbuf = RingBuffer_Malloc(1024);        /*从内存池中分配1K的内存给串口3接收DTU数据*/
 		printf("Wait for Cat1 DTU to start, wait 10s.... \r\n");
-		while( timeout <= 10 )   /* 等待Cat1 DTU启动，需要等待5-6s才能启动 */
-		{
+		while( timeout <= 10 ){   /* 等待Cat1 DTU启动，需要等待5-6s才能启动 */
 				ret = dtu_config_init(DTU_WORKMODE_ONENET);    /*初始化DTU工作参数*/
 				if( ret == 0 ){
 					osEventFlagsClear(Vcu_Event1Handle, EVENTBIT_3);
+					printf("**************************************************************************\r\n");
 					printf("Cat1 DTU Init Success \r\n");
+					printf("**************************************************************************\r\n\r\n");
 					break;
 				}
 				timeout++;
@@ -774,19 +769,11 @@ void DTU_Init_Handle(void *argument)
 		while( timeout > 10 ){   /* 超时 */
 			printf("**************************************************************************\r\n");
 			printf("ATK-DTU Init Fail ...\r\n");
-			printf("请按照以下步骤进行检查:\r\n");
-			printf("1.使用电脑上位机配置软件检查DTU能否单独正常工作\r\n");
-			printf("2.检查DTU串口参数与STM32通讯的串口参数是否一致\r\n");
-			printf("3.检查DTU与STM32串口的接线是否正确\r\n");
-			printf("4.检查DTU供电是否正常，DTU推荐使用12V/1A电源供电，不要使用USB的5V给模块供电！！\r\n");
 			printf("**************************************************************************\r\n\r\n");
 			osDelay(1000);
 			break;
 		}
     if((osEventFlagsGet (Vcu_Event1Handle)&EVENTBIT_3) == NULL){
-			send_data_to_dtu("AT+CLK\r\n", strlen("AT+CLK\r\n"));
-			osEventFlagsSet(Vcu_Event1Handle, EVENTBIT_1);
-			osDelay(500);
 			osEventFlagsSet(Vcu_Event1Handle, EVENTBIT_2);
 		}
 		vTaskDelete(DTU_Init_TaskHandle);
@@ -817,12 +804,12 @@ void Signal_4G_Handle(void *argument)
 						/*1.DTU进入配置状态*/
 						ret = dtu_enter_configmode();
 						if ( ret != 0 ){
-							printf("进入配置失败\r\n");
+							printf("DTU enter set mode failed !\r\n");
 							vTaskDelay(49);
 							j++;
 						}
 						else{
-							printf("进入配置成功\r\n");
+							printf("DTU enter set mode !\r\n");
 							osEventFlagsClear(Vcu_Event1Handle, EVENTBIT_3);
 							send_data_to_dtu("AT+CSQ\r\n", strlen("AT+CSQ\r\n"));
 							break;
@@ -853,10 +840,8 @@ void GPS_Init_Handle(void *argument)
 	uint8_t i = 0;
   for(;;)
   {
-		if(Ublox_Cfg_Rate(1000,1)!=0)	//设置定位信息更新速度为1000ms,顺便判断GPS模块是否在位. 
-		{
-			while((Ublox_Cfg_Rate(1000,1)!=0)&&key)	//持续判断,直到可以检查到WT-GPS_BD,且数据保存成功
-			{
+		if(Ublox_Cfg_Rate(1000,1)!=0){	//设置定位信息更新速度为1000ms,顺便判断GPS模块是否在位.
+			while((Ublox_Cfg_Rate(1000,1)!=0)&&key){	//持续判断,直到可以检查到WT-GPS_BD,且数据保存成功
 				Ublox_Cfg_Tp(1000000,100000,1);	//设置PPS为1秒钟输出1次,脉冲宽度为100ms
 				key=Ublox_Cfg_Cfg_Save();		//保存配置
 				i++;
@@ -871,8 +856,8 @@ void GPS_Init_Handle(void *argument)
 				printf("GPS Set Success\r\n");
 			}
 			osDelay(500);
-			osEventFlagsSet(Vcu_Event1Handle, EVENTBIT_8);
 		}
+		osEventFlagsSet(Vcu_Event1Handle, EVENTBIT_8);
     vTaskDelete(GPS_Init_TaskHandle);
   }
   /* USER CODE END GPS_Init_Handle */
@@ -892,14 +877,13 @@ void GPS_Get_Handle(void *argument)
   for(;;)
   {
 		if(osEventFlagsGet (Vcu_Event1Handle)&EVENTBIT_8){
-			if(USART3_RX_STA&0X8000)		//接收到一次数据了
-			{
+			if(USART3_RX_STA&0X8000){		//接收到一次数据了
 				USART3_RX_STA=0;		   	//启动下一次接收
 				GPS_Analysis(&gpsx,(uint8_t*)USART3_RX_BUF);//分析字符串
 				Gps_Msg_Show();				//显示信息
 			}
 		}
-    osDelay(GPS_Delay);
+		osDelay(GPS_Handle_Delay);
   }
   /* USER CODE END GPS_Get_Handle */
 }
@@ -934,19 +918,14 @@ void Oadc_Handle(void *argument)
 {
   /* USER CODE BEGIN Oadc_Handle */
   /* Infinite loop */
-
-	uint8_t StdId = OADC_StdId;
-	uint8_t oadc_msg[2] = {0};
   uint32_t battery_capacity = 0,oil_capacity = 0;
-	
 	extern uint32_t adc2_value[20];
   for(;;)
   {
 		if(ADC2_Flag == 1)
 		{
 			ADC2_Flag = 0;
-			for(uint8_t i=0;i<20;)
-		  {
+			for(uint8_t i=0;i<20;){
 				battery_capacity += adc2_value[i++];
 				oil_capacity += adc2_value[i++];
 		  }
@@ -976,12 +955,101 @@ void Oadc_Handle(void *argument)
 //			if((osEventFlagsGet (Vcu_Event1Handle)&EVENTBIT_6) == EVENTBIT_6&&dtu_device1.Onenet_Off_flag == 0){
 //			OneNet_Receive(oildisplay,XJ1_Device_ID,sizeof(oildisplay));
 //			}
-			Can_Send_Msg(StdId, oadc_msg, sizeof(oadc_msg));
+			osEventFlagsSet(Can_EventHandle, CAN_EVENTBIT_6);
 			HAL_ADC_Start_DMA(&hadc2,adc2_value,sizeof(adc2_value)/4);
 		}
     osDelay(ADC_Handle_Delay);//
   }
   /* USER CODE END Oadc_Handle */
+}
+
+/* USER CODE BEGIN Header_Cantx_Handle */
+/**
+* @brief Function implementing the CantxTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_Cantx_Handle */
+void Cantx_Handle(void *argument)
+{
+  /* USER CODE BEGIN Cantx_Handle */
+  /* Infinite loop */
+	uint32_t can_tx_mailbox;
+	CAN_TxHeaderTypeDef TxMessage;
+	TxMessage.ExtId=0;
+	TxMessage.IDE=CAN_ID_STD;
+	TxMessage.RTR=CAN_RTR_DATA;
+	TxMessage.TransmitGlobalTime=DISABLE;
+  for(;;)
+  {
+		if(osEventFlagsWait (Can_EventHandle,CAN_EVENTBIT_1,osFlagsWaitAny, NULL)&CAN_EVENTBIT_1){
+			TxMessage.StdId=Wit_StdId_xy;
+			TxMessage.DLC=sizeof(wit_msg[0]);
+			while(HAL_CAN_GetTxMailboxesFreeLevel(&hcan1) < 1);
+			if(HAL_CAN_AddTxMessage(&hcan1,&TxMessage,wit_msg[0],&can_tx_mailbox) != HAL_OK){
+				printf ("数据发送失败！\r\n");
+			}
+			osDelay(10);
+			TxMessage.StdId=Wit_StdId_xy+1;
+			TxMessage.DLC=sizeof(wit_msg[1]);
+			while(HAL_CAN_GetTxMailboxesFreeLevel(&hcan1) < 1);
+			if(HAL_CAN_AddTxMessage(&hcan1,&TxMessage,wit_msg[1],&can_tx_mailbox) != HAL_OK){
+				printf ("数据发送失败！\r\n");
+			}
+			osDelay(10);
+			TxMessage.StdId=Wit_StdId_xy+2;
+			TxMessage.DLC=sizeof(wit_msg[2]);
+			while(HAL_CAN_GetTxMailboxesFreeLevel(&hcan1) < 1);
+			if(HAL_CAN_AddTxMessage(&hcan1,&TxMessage,wit_msg[2],&can_tx_mailbox) != HAL_OK){
+				printf ("数据发送失败！\r\n");
+			}			
+			TxMessage.StdId=GPS_StdId;
+			TxMessage.DLC=sizeof(speedfloat_tx.data);
+			while(HAL_CAN_GetTxMailboxesFreeLevel(&hcan1) < 1);
+			if(HAL_CAN_AddTxMessage(&hcan1,&TxMessage,speedfloat_tx.data,&can_tx_mailbox) != HAL_OK){
+				printf ("数据发送失败！\r\n");
+			}
+			osDelay(10);			
+		}
+		if(osEventFlagsWait (Can_EventHandle,CAN_EVENTBIT_5,osFlagsWaitAny, NULL)&CAN_EVENTBIT_5){
+			TxMessage.StdId=CLK_StdId;
+			TxMessage.DLC=sizeof(Clkvalue);
+			while(HAL_CAN_GetTxMailboxesFreeLevel(&hcan1) < 1);
+			if(HAL_CAN_AddTxMessage(&hcan1,&TxMessage,Clkvalue,&can_tx_mailbox) != HAL_OK){
+				printf ("数据发送失败！\r\n");
+			}
+			osDelay(10);
+		}
+		if(osEventFlagsWait (Can_EventHandle,CAN_EVENTBIT_6,osFlagsWaitAny, NULL)&CAN_EVENTBIT_6){
+			TxMessage.StdId=XJWY_StdId;
+			TxMessage.DLC=sizeof(xjwy_msg);
+			while(HAL_CAN_GetTxMailboxesFreeLevel(&hcan1) < 1);
+			if(HAL_CAN_AddTxMessage(&hcan1,&TxMessage,xjwy_msg,&can_tx_mailbox) != HAL_OK){
+				printf ("数据发送失败！\r\n");
+			}		
+			osDelay(10);			
+		}
+		if(osEventFlagsWait (Can_EventHandle,CAN_EVENTBIT_7,osFlagsWaitAny, NULL)&CAN_EVENTBIT_7){
+			TxMessage.StdId=OADC_StdId;
+			TxMessage.DLC=sizeof(oadc_msg);
+			while(HAL_CAN_GetTxMailboxesFreeLevel(&hcan1) < 1);
+			if(HAL_CAN_AddTxMessage(&hcan1,&TxMessage,oadc_msg,&can_tx_mailbox) != HAL_OK){
+				printf ("数据发送失败！\r\n");
+			}
+			osDelay(10);			
+		}
+		if(osEventFlagsWait (Can_EventHandle,CAN_EVENTBIT_8,osFlagsWaitAny, NULL)&CAN_EVENTBIT_8){
+			TxMessage.StdId=DTU_StdId;
+			TxMessage.DLC=sizeof(dtu_device1.Network_size);
+			while(HAL_CAN_GetTxMailboxesFreeLevel(&hcan1) < 1);
+			if(HAL_CAN_AddTxMessage(&hcan1,&TxMessage,&dtu_device1.Network_size,&can_tx_mailbox) != HAL_OK){
+				printf ("数据发送失败！\r\n");
+			}
+			osDelay(10);	
+		}
+		osDelay(1);
+	}
+  /* USER CODE END Cantx_Handle */
 }
 
 /* Private application code --------------------------------------------------*/
@@ -998,15 +1066,27 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 		RxMessage.RTR=0;
 		RxMessage.Timestamp=0;
 		RxMessage.FilterMatchIndex = 0;
-		for(i = 0; i < 8; i++)
-		{
+		for(i = 0; i < 8; i++){
 			canrx_dat[i]=0x00;
 		}
-		HAL_CAN_GetRxMessage(&hcan1,CAN_RX_FIFO0,&RxMessage,canrx_dat);
-		if((RxMessage.StdId==Wit_dat) && (RxMessage.IDE==CAN_ID_STD) && (RxMessage.DLC==8))
+		HAL_CAN_GetRxMessage(&hcan1,CAN_RX_FIFO0,&RxMessage,canrx_dat);		
+		switch(RxMessage.StdId)
 		{
-			WitCanDataIn(canrx_dat, RxMessage.DLC);
-			osEventFlagsSet (Vcu_Event1Handle, EVENTBIT_0);
+			case(CLK_StdId2):{
+				if((RxMessage.IDE==CAN_ID_STD) && (RxMessage.DLC==1)){
+					UpdateTime_flag = canrx_dat[0];
+				}
+				break;
+			}
+			case(Wit_dat):{
+				if((RxMessage.IDE==CAN_ID_STD) && (RxMessage.DLC==8)){
+					WitCanDataIn(canrx_dat, RxMessage.DLC);
+					osEventFlagsSet (Vcu_Event1Handle, EVENTBIT_0);					
+				}
+				break;
+			}
+			default:
+				break;
 		}
 		osSemaphoreRelease(CanBinarySemHandle);
 	}
@@ -1025,12 +1105,12 @@ static void OneNet_Receive(uint8_t *Send_date,uint8_t device_id,uint8_t dat_len)
 			 res = dtu_enter_transfermode();
 			 if( res != 0 ){
 				 j++;
-					printf("DTU进入透传状态失败\r\n");
+					printf("DTU enter transparent mode failed !\r\n");
 				 osDelay(89);
 			 }
 			 else{
 				 osEventFlagsSet(Vcu_Event1Handle, EVENTBIT_3);	//			 dtu_device1.Dtumode_Switch_flag = 1;
-				 printf("DTU进入透传状态\r\n");
+				 printf("DTU enter transparent mode !\r\n");
 				 OneNet_FillBuf(Send_date,device_id);
 				 HAL_UART_Transmit(&huart2,&Sdat[0],sizeof(Sdat[0]),0xff);
 				 HAL_UART_Transmit(&huart2,&Sdat[1],sizeof(Sdat[1]),0xff);
@@ -1086,7 +1166,6 @@ static void OneNet_FillBuf(uint8_t *buff,uint8_t devicer_id)
 	osKernelUnlock ();
 }
 
-
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
 	__IO static uint32_t UsartTick = 0;
@@ -1120,7 +1199,6 @@ static void Gps_Msg_Show(void)
 {
 // 	float tp;
 	uint8_t wit_id = GPS_Device_ID;
-	uint8_t StdId = GPS_StdId;
 	uint8_t Send_date[128] = {0};
 //	tp=gpsx.longitude;	
 ////	printf("Longitude:%.5f %1c\r\n",tp/=100000,gpsx.ewhemi);//得到经度字符串 	   
@@ -1129,43 +1207,34 @@ static void Gps_Msg_Show(void)
 //	tp=gpsx.altitude;	   
 ////	printf("Altitude:%.1fm \r\n",tp/=10);//得到高度字符串
 	speedfloat_tx.value = gpsx.speed/1000;
-	printf("Speed:%.3fkm/h \r\n",speedfloat_tx.value);//得到速度字符串
+//	printf("Speed:%.3fkm/h \r\n",speedfloat_tx.value);//得到速度字符串
 //	if(gpsx.fixmode<=3)														//定位状态
 //	{  
 //		printf("Fix Mode:%s\r\n",fixmode_tbl[gpsx.fixmode]);  
 //	}
 //	printf("Valid satellite:%02d\r\n",gpsx.posslnum);//用于定位的卫星数
 //	printf("Visible satellite:%02d\r\n",gpsx.svnum%100);//可见卫星数		
-	printf("UTC Date:%04d/%02d/%02d   \r\n",gpsx.utc.year,gpsx.utc.month,gpsx.utc.date); //显示UTC日期
-	printf("UTC Time:%02d:%02d:%02d   \r\n",gpsx.utc.hour,gpsx.utc.min,gpsx.utc.sec);//显示UTC时间
-		if((osEventFlagsGet (Vcu_Event1Handle)&EVENTBIT_9) == EVENTBIT_9&&dtu_device1.Onenet_Off_flag == 0){
+//	printf("UTC Date:%04d/%02d/%02d   \r\n",gpsx.utc.year,gpsx.utc.month,gpsx.utc.date); //显示UTC日期
+//	printf("UTC Time:%02d:%02d:%02d   \r\n",gpsx.utc.hour,gpsx.utc.min,gpsx.utc.sec);//显示UTC时间
+	if(UpdateTime_flag != 1&&gpsx.utc.year > 2020){
+		if(gpsx.utc.hour > 0&&gpsx.utc.min > 0&&gpsx.utc.sec > 0){
+			Clkvalue[0] = gpsx.utc.year - 2000;
+			Clkvalue[1] = gpsx.utc.month;
+			Clkvalue[2] = gpsx.utc.date; 
+			Clkvalue[3] = gpsx.utc.hour + 7;
+			Clkvalue[4] = gpsx.utc.min;
+			Clkvalue[5] = gpsx.utc.sec;
+			for(uint8_t k = 0;k<6;k++){
+				printf("%d\r\n",Clkvalue[k]);
+			}
+			osEventFlagsSet(Can_EventHandle, CAN_EVENTBIT_5);
+			osDelay(20);
+		}
+	}
+	osEventFlagsSet(Can_EventHandle, CAN_EVENTBIT_4);
+	if((osEventFlagsGet (Vcu_Event1Handle)&EVENTBIT_9) == EVENTBIT_9&&dtu_device1.Onenet_Off_flag == 0){
 		OneNet_Receive(Send_date,wit_id,sizeof(Send_date));
 	}
-	Can_Send_Msg(StdId, speedfloat_tx.data, sizeof(speedfloat_tx.data));
-}
-
-void Can_Send_Msg(uint8_t ucStdId, uint8_t* msg, uint8_t len)
-{
-	uint8_t i=0;
-	uint32_t *can_tx_mailbox;
-	uint8_t can_send[8];
- 	CAN_TxHeaderTypeDef TxMessage;
-	osKernelLock ();	
-	TxMessage.StdId=ucStdId;
-	TxMessage.ExtId=0;
-	TxMessage.IDE=CAN_ID_STD;
-	TxMessage.RTR=CAN_RTR_DATA;
-	TxMessage.DLC=len;
-	TxMessage.TransmitGlobalTime=DISABLE;
-	for(i=0;i<len;i++)
-	can_send[i]=msg[i];
-	while(HAL_CAN_GetTxMailboxesFreeLevel(&hcan1) < 1);
-	if(HAL_CAN_AddTxMessage(&hcan1,&TxMessage,can_send,can_tx_mailbox) != HAL_OK)
-	{
-		printf ("数据发送失败！\r\n");
-	}
-	osKernelUnlock ();
-//	printf ("0x%x\r\n",*can_tx_mailbox);
 }
 
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
@@ -1224,5 +1293,7 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 //		
 //  }
 //}
+
+
 /* USER CODE END Application */
 

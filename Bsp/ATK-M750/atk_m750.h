@@ -39,7 +39,6 @@ typedef struct {
 	uint8_t Network_size;
 	uint32_t dtu_rxlen;
 	uint8_t dtu_rxbuf[DTU_ONENETDATE_RX_BUF];
-	ST_Time Clk_value;
 }_dtu_4g_device;
 
 

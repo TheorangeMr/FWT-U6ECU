@@ -70,6 +70,8 @@ extern osEventFlagsId_t Vcu_Event1Handle;
 /* External variables --------------------------------------------------------*/
 extern DMA_HandleTypeDef hdma_adc1;
 extern DMA_HandleTypeDef hdma_adc2;
+extern ADC_HandleTypeDef hadc1;
+extern ADC_HandleTypeDef hadc2;
 extern CAN_HandleTypeDef hcan1;
 extern DMA_HandleTypeDef hdma_sdio_rx;
 extern DMA_HandleTypeDef hdma_sdio_tx;
@@ -213,6 +215,21 @@ void DMA1_Stream5_IRQHandler(void)
 }
 
 /**
+  * @brief This function handles ADC1, ADC2 and ADC3 global interrupts.
+  */
+void ADC_IRQHandler(void)
+{
+  /* USER CODE BEGIN ADC_IRQn 0 */
+
+  /* USER CODE END ADC_IRQn 0 */
+  HAL_ADC_IRQHandler(&hadc1);
+  HAL_ADC_IRQHandler(&hadc2);
+  /* USER CODE BEGIN ADC_IRQn 1 */
+
+  /* USER CODE END ADC_IRQn 1 */
+}
+
+/**
   * @brief This function handles CAN1 TX interrupts.
   */
 void CAN1_TX_IRQHandler(void)
@@ -286,16 +303,15 @@ void USART2_IRQHandler(void)
 		rx_len = sizeof(rx_4g_buffer)-temp;
 		HAL_UART_Receive_DMA(&huart2,rx_4g_buffer,sizeof(rx_4g_buffer));
 		if(osEventFlagsGet (Vcu_Event1Handle)&EVENTBIT_1){
-			if((strstr((char *)rx_4g_buffer, "+CLK") == ((char *)rx_4g_buffer+2))||\
-				(strstr((char *)rx_4g_buffer, "+CSQ:") == ((char *)rx_4g_buffer+2))){
+			if(strstr((char *)rx_4g_buffer, "+CSQ:") == ((char *)rx_4g_buffer+2)){
 					if(rx_len <= 64){
 						osMessageQueuePut (UsartQueueHandle, rx_4g_buffer, NULL,0);	
 					}
 			}else{
-			RingBuffer_In(p_uart2_rxbuf, rx_4g_buffer, strlen((char *)rx_4g_buffer));            //放入缓存
+			RingBuffer_In(p_uart2_rxbuf, rx_4g_buffer, strlen((char *)rx_4g_buffer));            //放入缓冲区
 			}
 		}else{
-			RingBuffer_In(p_uart2_rxbuf, rx_4g_buffer, strlen((char *)rx_4g_buffer));            //放入缓存
+			RingBuffer_In(p_uart2_rxbuf, rx_4g_buffer, strlen((char *)rx_4g_buffer));            //放入缓冲区
 			}
 		osSemaphoreRelease (Onenet_tx_BinarySemHandle);
 	}

@@ -293,7 +293,10 @@ uint8_t Ublox_Cfg_Cfg_Save(void)
 	cfg_cfg->devicemask=4; 		//保存在EEPROM里面		 
 	Ublox_CheckSum((uint8_t*)(&cfg_cfg->id),sizeof(_ublox_cfg_cfg)-4,&cfg_cfg->cka,&cfg_cfg->ckb);
 	Ublox_Send_Date((uint8_t*)cfg_cfg,sizeof(_ublox_cfg_cfg));//发送数据给NEO-6M     
-	for(i=0;i<6;i++)if(Ublox_Cfg_Ack_Check()==0)break;		//EEPROM写入需要比较久时间,所以连续判断多次
+	for(i=0;i<6;i++){
+//		printf("%d\r\n",Ublox_Cfg_Ack_Check());
+		if(Ublox_Cfg_Ack_Check()==0)break;		//EEPROM写入需要比较久时间,所以连续判断多次
+	}
 	return i==6?1:0;
 }
 //配置NMEA输出信息格式
@@ -385,6 +388,7 @@ uint8_t Ublox_Cfg_Rate(uint16_t measrate,uint8_t reftime)
 	cfg_rate->navrate=1;		//导航速率（周期），固定为1
 	cfg_rate->timeref=reftime; 	//参考时间为GPS时间
 	Ublox_CheckSum((uint8_t*)(&cfg_rate->id),sizeof(_ublox_cfg_rate)-4,&cfg_rate->cka,&cfg_rate->ckb);
+//	printf("len = %d",sizeof(_ublox_cfg_rate));								14
 	Ublox_Send_Date((uint8_t*)cfg_rate,sizeof(_ublox_cfg_rate));//发送数据给NEO-6M 
 	return Ublox_Cfg_Ack_Check();
 }
@@ -393,7 +397,7 @@ uint8_t Ublox_Cfg_Rate(uint16_t measrate,uint8_t reftime)
 //len：要发送的字节数
 void Ublox_Send_Date(uint8_t* dbuf,uint16_t len)
 {
-	HAL_UART_Transmit(&huart3,dbuf,sizeof(dbuf),0xff);
+	HAL_UART_Transmit(&huart3,dbuf,len,0xff);
 }
 
 

@@ -71,8 +71,12 @@ static void Gps_Msg_Show(void);
 #define xjwy2_GPIO_Port GPIOC
 #define xjwy1_Pin GPIO_PIN_2
 #define xjwy1_GPIO_Port GPIOC
+#define yuliang_Pin GPIO_PIN_6
+#define yuliang_GPIO_Port GPIOA
 #define xjwy4_Pin GPIO_PIN_4
 #define xjwy4_GPIO_Port GPIOC
+#define ymxw_Pin GPIO_PIN_5
+#define ymxw_GPIO_Port GPIOC
 #define xjwy3_Pin GPIO_PIN_0
 #define xjwy3_GPIO_Port GPIOB
 #define batter_Pin GPIO_PIN_1
