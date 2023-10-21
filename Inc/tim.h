@@ -34,6 +34,10 @@ extern "C" {
 
 extern TIM_HandleTypeDef htim2;
 
+extern TIM_HandleTypeDef htim3;
+
+extern TIM_HandleTypeDef htim5;
+
 extern TIM_HandleTypeDef htim14;
 
 /* USER CODE BEGIN Private defines */
@@ -41,6 +45,8 @@ extern TIM_HandleTypeDef htim14;
 /* USER CODE END Private defines */
 
 void MX_TIM2_Init(void);
+void MX_TIM3_Init(void);
+void MX_TIM5_Init(void);
 void MX_TIM14_Init(void);
 
 /* USER CODE BEGIN Prototypes */

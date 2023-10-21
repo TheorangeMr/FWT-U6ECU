@@ -74,3 +74,4 @@ u6-vcu-code\main.o: ../Bsp/RingBuffer/RingBuffer.h
 u6-vcu-code\main.o: D:\software\keil 5 install\ARM\ARMCC\Bin\..\include\stdbool.h
 u6-vcu-code\main.o: ../Bsp/MALLOC/malloc.h
 u6-vcu-code\main.o: ../Bsp/GPS/gps.h
+u6-vcu-code\main.o: ../Bsp/MT_textspeed/mtspeed.h

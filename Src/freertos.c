@@ -31,6 +31,7 @@
 #include "stdlib.h"
 #include "gps.h"
 #include "usart.h"
+#include "mtspeed.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -45,6 +46,12 @@ typedef StaticEventGroup_t osStaticEventGroupDef_t;
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
+#define Q_TOOTH_NUM 24			 //齿数
+#define F_TOOTH_NUM 48			 //齿数
+#define WHEEL_RADIUS 0.257 //轮径(单位:m)
+#define PI 3.14						 //圆周率
+#define TANK_HEIGHT 210		 //油箱高度
+#define GEAR_RATIO  4.05    //传动比
 
 #define XJWY_StdId							0x01
 #define GPS_StdId								0x02
@@ -52,16 +59,15 @@ typedef StaticEventGroup_t osStaticEventGroupDef_t;
 #define CLK_StdId2								0x13
 #define DTU_StdId								0x04       //0x04     csq
 #define OADC_StdId              0x05
+#define Tyre_StdId              0x08
 #define Wit_StdId_xy   						0x51      //0x51,0x52  angle_value-xy,z
 #define Wit_dat   							((uint32_t)0x50) //标识符ID：0x50    (标准帧)
 
-
-
-
 #define Wit_Device_ID        ((uint8_t)0x01)
-#define XJ1_Device_ID        ((uint8_t)0x02)             //油门踏板
+#define XJ_Device_ID        ((uint8_t)0x02)             //油门踏板
 #define GPS_Device_ID        ((uint8_t)0x03)
 #define DTU_Device_ID        ((uint8_t)0x04)
+#define TYRE_Device_ID       ((uint8_t)0x05)      
 
 /*
 *************************************************************************
@@ -69,8 +75,9 @@ typedef StaticEventGroup_t osStaticEventGroupDef_t;
 *************************************************************************
 */
 #define   Wit_Dat_Handle_Delay          30
+#define   Type_Dat_Handle_Delay         200
 #define   Can_Rx_Handle_Delay           1
-#define   GPS_Handle_Delay              100
+#define   GPS_Handle_Delay              50
 #define   OD_Handle_Delay               200
 #define   ADC_Handle_Delay              20000
 #define   DTU_Signal_Delay              20000
@@ -91,12 +98,13 @@ typedef StaticEventGroup_t osStaticEventGroupDef_t;
 #define EVENTBIT_4	(1<<4)
 
 #define EVENTBIT_5	(1<<5)				//暂未使用
-#define EVENTBIT_6	(1<<6)        // 油门行程4g发送事件
-#define EVENTBIT_7	(1<<7)				// 九轴4g发送事件
+#define EVENTBIT_6	(1<<6)        
+#define EVENTBIT_7	(1<<7)				
 
 
 #define EVENTBIT_8	(1<<8)				// GPS数据采集时间
-#define EVENTBIT_9	(1<<9)				// GPS数据发送
+#define EVENTBIT_9	(1<<9)				
+#define EVENTBIT_10 (1<<10)       
 
 
 #define MT_EVENTBIT_1	(1<<0)			
@@ -134,6 +142,13 @@ extern IWDG_HandleTypeDef hiwdg;
 extern UART_HandleTypeDef huart1;
 extern UART_HandleTypeDef huart2;
 extern UART_HandleTypeDef huart3;
+
+//timer
+extern TIM_HandleTypeDef htim2;
+extern TIM_HandleTypeDef htim3;
+extern TIM_HandleTypeDef htim5;
+extern TIM_HandleTypeDef htim14;
+
 
 extern uint8_t USART3_RX_BUF[USART3_MAX_RECV_LEN]; 				//接收缓冲,最大USART3_MAX_RECV_LEN个字节.
 extern uint8_t  USART3_TX_BUF[USART3_MAX_SEND_LEN]; 			//发送缓冲,最大USART3_MAX_SEND_LEN字节
@@ -175,32 +190,21 @@ uint8_t wit_msg[3][8] = {0};
 uint8_t xjwy_msg[7] = {0};
 uint8_t Clkvalue[6] = {0};
 uint8_t oadc_msg[2] = {0};
-
+uint8_t tyre_msg[8] = {0};
 
 //onenet
 extern const char sqpa[4][4];
 const char ONENET_COM_OFF[]="lc0218";
 const char ONENET_COM_ON[] = "lc2001";
 RingBuffer *p_uart2_rxbuf;
-_dtu_4g_device dtu_device1 = {0,0,0,0};
+_dtu_4g_device dtu_device1 = {0,0,0,{0},1,0};
 
+//Tyre_speed
+mt_rotate mtspeed1 = {0,0,0,0,0,0,0,0,0,0};
+mt_rotate mtspeed2 = {0,0,0,0,0,0,0,0,0,0};
+mt_rotate mtspeed3 = {0,0,0,0,0,0,0,0,0,0};
+mt_rotate mtspeed4 = {0,0,0,0,0,0,0,0,0,0};
 
-//
-typedef struct{
-	__IO uint8_t Actual_Endflag;                              //实际结束标志
-	__IO uint8_t Startup_Flag;                                //开始采集标志
-	__IO uint8_t Endup_Flag; 																 //结束标志
-	__IO uint32_t Total_Time_M1;                               //M1  频率
-	__IO uint32_t Total_Time_M2;                               //M2
-	__IO uint32_t Overflow_Count; 
-	__IO uint8_t Sampling_Flag;     
-  __IO uint32_t t1_st_value;	
-}mt_rotate;
-
-mt_rotate mtspeed1 = {0,0,0,0,0,0,0,0};
-mt_rotate mtspeed2 = {0,0,0,0,0,0,0,0};
-mt_rotate mtspeed3 = {0,0,0,0,0,0,0,0};
-mt_rotate mtspeed4 = {0,0,0,0,0,0,0,0};
 
 //位移传感器结构体
 
@@ -255,7 +259,7 @@ const osThreadAttr_t RB_Read_Task_attributes = {
 osThreadId_t OilDisplay_TaskHandle;
 const osThreadAttr_t OilDisplay_Task_attributes = {
   .name = "OilDisplay_Task",
-  .stack_size = 256 * 4,
+  .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityLow5,
 };
 /* Definitions for DTU_Init_Task */
@@ -312,6 +316,13 @@ const osThreadAttr_t CantxTask_attributes = {
   .stack_size = sizeof(CantxTaskBuffer),
   .priority = (osPriority_t) osPriorityAboveNormal,
 };
+/* Definitions for TyreSpeedTask */
+osThreadId_t TyreSpeedTaskHandle;
+const osThreadAttr_t TyreSpeedTask_attributes = {
+  .name = "TyreSpeedTask",
+  .stack_size = 256 * 4,
+  .priority = (osPriority_t) osPriorityLow7,
+};
 /* Definitions for UsartQueue */
 osMessageQueueId_t UsartQueueHandle;
 const osMessageQueueAttr_t UsartQueue_attributes = {
@@ -333,6 +344,14 @@ const osSemaphoreAttr_t Onenet_tx_BinarySem_attributes = {
   .cb_mem = &Onenet_tx_BinarySemControlBlock,
   .cb_size = sizeof(Onenet_tx_BinarySemControlBlock),
 };
+/* Definitions for TyreBinarySem */
+osSemaphoreId_t TyreBinarySemHandle;
+osStaticSemaphoreDef_t TypeBinarySemControlBlock;
+const osSemaphoreAttr_t TyreBinarySem_attributes = {
+  .name = "TyreBinarySem",
+  .cb_mem = &TypeBinarySemControlBlock,
+  .cb_size = sizeof(TypeBinarySemControlBlock),
+};
 /* Definitions for Vcu_Event1 */
 osEventFlagsId_t Vcu_Event1Handle;
 osStaticEventGroupDef_t Vcu_Event1ControlBlock;
@@ -341,14 +360,6 @@ const osEventFlagsAttr_t Vcu_Event1_attributes = {
   .cb_mem = &Vcu_Event1ControlBlock,
   .cb_size = sizeof(Vcu_Event1ControlBlock),
 };
-/* Definitions for Mt_Event */
-osEventFlagsId_t Mt_EventHandle;
-osStaticEventGroupDef_t Mt_EventControlBlock;
-const osEventFlagsAttr_t Mt_Event_attributes = {
-  .name = "Mt_Event",
-  .cb_mem = &Mt_EventControlBlock,
-  .cb_size = sizeof(Mt_EventControlBlock),
-};
 /* Definitions for Can_Event */
 osEventFlagsId_t Can_EventHandle;
 osStaticEventGroupDef_t Can_EventControlBlock;
@@ -356,6 +367,14 @@ const osEventFlagsAttr_t Can_Event_attributes = {
   .name = "Can_Event",
   .cb_mem = &Can_EventControlBlock,
   .cb_size = sizeof(Can_EventControlBlock),
+};
+/* Definitions for MT_Event */
+osEventFlagsId_t MT_EventHandle;
+osStaticEventGroupDef_t MT_EventControlBlock;
+const osEventFlagsAttr_t MT_Event_attributes = {
+  .name = "MT_Event",
+  .cb_mem = &MT_EventControlBlock,
+  .cb_size = sizeof(MT_EventControlBlock),
 };
 
 /* Private function prototypes -----------------------------------------------*/
@@ -374,6 +393,7 @@ void GPS_Get_Handle(void *argument);
 void IWDG_Handle(void *argument);
 void Oadc_Handle(void *argument);
 void Cantx_Handle(void *argument);
+void TyreSpeed_Handle(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -397,6 +417,9 @@ void MX_FREERTOS_Init(void) {
 
   /* creation of Onenet_tx_BinarySem */
   Onenet_tx_BinarySemHandle = osSemaphoreNew(1, 1, &Onenet_tx_BinarySem_attributes);
+
+  /* creation of TyreBinarySem */
+  TyreBinarySemHandle = osSemaphoreNew(1, 1, &TyreBinarySem_attributes);
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
@@ -448,6 +471,9 @@ void MX_FREERTOS_Init(void) {
   /* creation of CantxTask */
   CantxTaskHandle = osThreadNew(Cantx_Handle, NULL, &CantxTask_attributes);
 
+  /* creation of TyreSpeedTask */
+  TyreSpeedTaskHandle = osThreadNew(TyreSpeed_Handle, NULL, &TyreSpeedTask_attributes);
+
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
 	
@@ -498,17 +524,22 @@ void MX_FREERTOS_Init(void) {
 		printf("Cantx_Handle任务创建成功!\r\n");
 	else
 		printf(" Cantx_Handle任务创建失败!\r\n");
+	if(NULL != TyreSpeedTaskHandle)/* 创建成功 */
+		printf("TyreSpeedTaskHandle任务创建成功!\r\n");
+	else
+		printf(" TyreSpeedTaskHandle任务创建失败!\r\n");	
+	
   /* USER CODE END RTOS_THREADS */
 
   /* Create the event(s) */
   /* creation of Vcu_Event1 */
   Vcu_Event1Handle = osEventFlagsNew(&Vcu_Event1_attributes);
 
-  /* creation of Mt_Event */
-  Mt_EventHandle = osEventFlagsNew(&Mt_Event_attributes);
-
   /* creation of Can_Event */
   Can_EventHandle = osEventFlagsNew(&Can_Event_attributes);
+
+  /* creation of MT_Event */
+  MT_EventHandle = osEventFlagsNew(&MT_Event_attributes);
 
   /* USER CODE BEGIN RTOS_EVENTS */
   /* add events, ... */
@@ -528,8 +559,7 @@ void Wit_Dat_Handle(void *argument)
   /* USER CODE BEGIN Wit_Dat_Handle */
   /* Infinite loop */
 	uint8_t i;
-	uint8_t wit_id = Wit_Device_ID;
-	uint8_t Send_date[128] = {0};
+	uint8_t Wit_date[128] = {0};
   for(;;)
   {
 		if(osEventFlagsWait (Vcu_Event1Handle, EVENTBIT_0,osFlagsWaitAny, osWaitForever)&EVENTBIT_0){
@@ -539,13 +569,14 @@ void Wit_Dat_Handle(void *argument)
 				for(i = 0; i < 3; i++)
 				{
 					wit_dat1.fAcc[i] = sReg[AX+i] / 32768.0f * 16.0f;
+					Accfloat_tx[i].value = wit_dat1.fAcc[i];
 					wit_dat1.fGyro[i] = sReg[GX+i] / 32768.0f * 2000.0f;
 					wit_dat1.fAngle[i] = sReg[Roll+i] / 32768.0f * 180.0f;
 					Anglefloat_tx[i].value = wit_dat1.fAngle[i];
 				}
 				if(s_cDataUpdate & ACC_UPDATE)
 				{
-	//				printf("acc:%.3f %.3f %.3f\r\n", wit_dat1.fAcc[0], wit_dat1.fAcc[1], wit_dat1.fAcc[2]);
+//					printf("acc:%.3f %.3f %.3f\r\n", wit_dat1.fAcc[0], wit_dat1.fAcc[1], wit_dat1.fAcc[2]);
 					s_cDataUpdate &= ~ACC_UPDATE;
 				}
 				if(s_cDataUpdate & GYRO_UPDATE)
@@ -555,7 +586,7 @@ void Wit_Dat_Handle(void *argument)
 				}
 				if(s_cDataUpdate & ANGLE_UPDATE)
 				{
-					printf("angle:%.3f %.3f %.3f\r\n", wit_dat1.fAngle[0], wit_dat1.fAngle[1], wit_dat1.fAngle[2]);
+//					printf("angle:%.3f %.3f %.3f\r\n", wit_dat1.fAngle[0], wit_dat1.fAngle[1], wit_dat1.fAngle[2]);
 					s_cDataUpdate &= ~ANGLE_UPDATE;
 				}
 				if(s_cDataUpdate & MAG_UPDATE)
@@ -564,31 +595,31 @@ void Wit_Dat_Handle(void *argument)
 					s_cDataUpdate &= ~MAG_UPDATE;
 				}
 			}
-			if((osEventFlagsGet (Vcu_Event1Handle)&EVENTBIT_7) == EVENTBIT_7&&dtu_device1.Onenet_Off_flag == 0){
-				OneNet_Receive(Send_date,wit_id,sizeof(Send_date));
-			}
 			for(i = 0; i < 8; i++){
 				if(i<4){
 					wit_msg[0][i] = Anglefloat_tx[0].data[i];
 				}else{
-					wit_msg[0][i] = Anglefloat_tx[1].data[i];
+					wit_msg[0][i] = Anglefloat_tx[1].data[i-4];
 				}
 			}
 			for(i = 0; i < 8; i++){
 				if(i<4){
 					wit_msg[1][i] = Anglefloat_tx[2].data[i];
 				}else{
-					wit_msg[1][i] = Accfloat_tx[0].data[i];
+					wit_msg[1][i] = Accfloat_tx[0].data[i-4];
 				}
 			}
 			for(i = 0; i < 8; i++){
 				if(i<4){
 					wit_msg[2][i] = Accfloat_tx[1].data[i];
 				}else{
-					wit_msg[2][i] = Accfloat_tx[2].data[i];
+					wit_msg[2][i] = Accfloat_tx[2].data[i-4];
 				}
 			}
 			osEventFlagsSet(Can_EventHandle, CAN_EVENTBIT_1);
+			if(dtu_device1.Onenet_Off_flag == 0&&dtu_device1.st_flag == 0){
+				OneNet_Receive(Wit_date,Wit_Device_ID,sizeof(Wit_date));
+			}
 			vTaskDelay(Wit_Dat_Handle_Delay);
 		}
   }
@@ -609,7 +640,6 @@ void Can_Rx_Handle(void *argument)
   for(;;)
   {
 		osSemaphoreAcquire(CanBinarySemHandle,osWaitForever);
-		
     osDelay(1);
   }
   /* USER CODE END Can_Rx_Handle */
@@ -639,8 +669,8 @@ void RingBuffer_Read_Handle(void *argument)
 			memset(receive, 0, sizeof(receive));
 			osMessageQueueGet (UsartQueueHandle, receive, NULL, osWaitForever);
 			if(strcmp((char *)receive,ONENET_COM_OFF)== 0)
-			{			
-//				printf("data = %s\r\n",receive);
+			{
+//			printf("data = %s\r\n",receive);
 				dtu_device1.Onenet_Off_flag = 1;
 			}
 			else if(strcmp((char *)receive,ONENET_COM_ON)== 0)
@@ -670,16 +700,16 @@ void RingBuffer_Read_Handle(void *argument)
 					dtu_device1.Network_size = 1;}
 					else if(CSQvalue == 0){
 					dtu_device1.Network_size = 0;}
-					j = 0;				
+					j = 0;
 					}
 				}
 				osKernelUnlock ();
 				osEventFlagsSet(Can_EventHandle, CAN_EVENTBIT_8);
 //				printf("Network_size\r\n");
 			 }
-			}
-		  vTaskDelay(50);	
 		}
+		 vTaskDelay(50);	
+	}
   /* USER CODE END RingBuffer_Read_Handle */
 }
 
@@ -695,7 +725,7 @@ void OilDisplayment_Handle(void *argument)
   /* USER CODE BEGIN OilDisplayment_Handle */
   /* Infinite loop */
 	uint32_t oildisplay_value,xjwy_1,xjwy_2,xjwy_3,xjwy_4,oil_yy;
-	uint8_t oildisplay[64] = {0};
+	uint8_t oildisplay[128] = {0};
   for(;;)
   {
 		if(ADC1_Flag == 1)
@@ -712,12 +742,18 @@ void OilDisplayment_Handle(void *argument)
 				oildisplay_value += adc1_value[i++];
 			}
 			Wy_dat.displacement_dat = oildisplay_value*5/4096;    //oildisplay_value/10*50/4096
-			Wy_dat.xjwy1_dat = xjwy_1*15/4096;
-			Wy_dat.xjwy2_dat = xjwy_2*15/4096;
-			Wy_dat.xjwy3_dat = xjwy_3*15/4096;
-			Wy_dat.xjwy4_dat = xjwy_4*15/4096;
+			Wy_dat.xjwy1_dat = xjwy_1*22.5/4096;
+			Wy_dat.xjwy2_dat = xjwy_2*22.5/4096;
+			Wy_dat.xjwy3_dat = xjwy_3*22.5/4096;
+			Wy_dat.xjwy4_dat = xjwy_4*22.5/4096;
 			Wy_dat.oilyy_dat[0] = (int)(oil_yy*2000/4096)/100;
 			Wy_dat.oilyy_dat[1] = (int)(oil_yy*2000/4096)%100;
+//			printf("oilyy_dat:%d mv\r\n",oil_yy*3300/40960);
+//			printf("Wy_dat.xjwy1_dat:%d mv\r\n",Wy_dat.xjwy1_dat);
+//			printf("Wy_dat.xjwy2_dat:%d mv\r\n",Wy_dat.xjwy2_dat);
+//			printf("Wy_dat.xjwy3_dat:%d mv\r\n",Wy_dat.xjwy3_dat);
+//			printf("Wy_dat.xjwy4_dat:%d mv\r\n",Wy_dat.xjwy4_dat);
+//			printf("displacement_dat:%d\r\n",Wy_dat.displacement_dat);
 			xjwy_msg[0] = Wy_dat.displacement_dat;
 			xjwy_msg[1] = Wy_dat.xjwy1_dat;
 			xjwy_msg[2] = Wy_dat.xjwy2_dat;
@@ -725,10 +761,10 @@ void OilDisplayment_Handle(void *argument)
 			xjwy_msg[4] = Wy_dat.xjwy4_dat;
 			xjwy_msg[5] = Wy_dat.oilyy_dat[0];
 			xjwy_msg[6] = Wy_dat.oilyy_dat[1];
-			if((osEventFlagsGet (Vcu_Event1Handle)&EVENTBIT_6) == EVENTBIT_6&&dtu_device1.Onenet_Off_flag == 0){
-			OneNet_Receive(oildisplay,XJ1_Device_ID,sizeof(oildisplay));
-			}
 			osEventFlagsSet(Can_EventHandle, CAN_EVENTBIT_6);
+			if(dtu_device1.Onenet_Off_flag == 0&&dtu_device1.st_flag == 0){
+				OneNet_Receive(oildisplay,XJ_Device_ID,sizeof(oildisplay));
+			}
 			HAL_ADC_Start_DMA(&hadc1,adc1_value,sizeof(adc1_value)/4);
 		}
     osDelay(OD_Handle_Delay);
@@ -757,7 +793,7 @@ void DTU_Init_Handle(void *argument)
 		while( timeout <= 10 ){   /* 等待Cat1 DTU启动，需要等待5-6s才能启动 */
 				ret = dtu_config_init(DTU_WORKMODE_ONENET);    /*初始化DTU工作参数*/
 				if( ret == 0 ){
-					osEventFlagsClear(Vcu_Event1Handle, EVENTBIT_3);
+					osEventFlagsSet(Vcu_Event1Handle, EVENTBIT_3);
 					printf("**************************************************************************\r\n");
 					printf("Cat1 DTU Init Success \r\n");
 					printf("**************************************************************************\r\n\r\n");
@@ -766,14 +802,12 @@ void DTU_Init_Handle(void *argument)
 				timeout++;
 				osDelay(1000);
 		}
-		while( timeout > 10 ){   /* 超时 */
+		if( timeout > 10 ){   /* 超时 */
 			printf("**************************************************************************\r\n");
 			printf("ATK-DTU Init Fail ...\r\n");
 			printf("**************************************************************************\r\n\r\n");
-			osDelay(1000);
-			break;
 		}
-    if((osEventFlagsGet (Vcu_Event1Handle)&EVENTBIT_3) == NULL){
+    if((osEventFlagsGet (Vcu_Event1Handle)&EVENTBIT_3)){
 			osEventFlagsSet(Vcu_Event1Handle, EVENTBIT_2);
 		}
 		vTaskDelete(DTU_Init_TaskHandle);
@@ -799,13 +833,14 @@ void Signal_4G_Handle(void *argument)
 			if(osEventFlagsWait (Vcu_Event1Handle, EVENTBIT_2,osFlagsNoClear, osWaitForever)&EVENTBIT_2){
 //				printf("%d\r\n",(osEventFlagsGet(Vcu_Event1Handle)&EVENTBIT_3));
 				if(osEventFlagsGet (Vcu_Event1Handle)&EVENTBIT_3){
+					dtu_device1.st_flag = 1;
 					while(j<5){
-						osEventFlagsClear(Vcu_Event1Handle, EVENTBIT_1|EVENTBIT_6|EVENTBIT_7|EVENTBIT_9);
+						osEventFlagsClear(Vcu_Event1Handle, EVENTBIT_1);
 						/*1.DTU进入配置状态*/
 						ret = dtu_enter_configmode();
 						if ( ret != 0 ){
 							printf("DTU enter set mode failed !\r\n");
-							vTaskDelay(49);
+							vTaskDelay(10);
 							j++;
 						}
 						else{
@@ -815,10 +850,10 @@ void Signal_4G_Handle(void *argument)
 							break;
 						}
 					}
+					dtu_device1.st_flag = 0;
 					j = 0;
 					osEventFlagsSet(Vcu_Event1Handle, EVENTBIT_1);
 				}
-				osEventFlagsSet(Vcu_Event1Handle, EVENTBIT_6|EVENTBIT_7|EVENTBIT_9);
 			}
 		osDelay(DTU_Signal_Delay);
   }
@@ -952,13 +987,13 @@ void Oadc_Handle(void *argument)
 				oadc_msg[0] = 0;
 			}
 			oadc_msg[1] = 0;
-//			if((osEventFlagsGet (Vcu_Event1Handle)&EVENTBIT_6) == EVENTBIT_6&&dtu_device1.Onenet_Off_flag == 0){
+			osEventFlagsSet(Can_EventHandle, CAN_EVENTBIT_7);
+			//			if((osEventFlagsGet (Vcu_Event1Handle)&EVENTBIT_6) == EVENTBIT_6&&dtu_device1.Onenet_Off_flag == 0&&){
 //			OneNet_Receive(oildisplay,XJ1_Device_ID,sizeof(oildisplay));
 //			}
-			osEventFlagsSet(Can_EventHandle, CAN_EVENTBIT_6);
 			HAL_ADC_Start_DMA(&hadc2,adc2_value,sizeof(adc2_value)/4);
 		}
-    osDelay(ADC_Handle_Delay);//
+    osDelay(ADC_Handle_Delay);
   }
   /* USER CODE END Oadc_Handle */
 }
@@ -982,74 +1017,212 @@ void Cantx_Handle(void *argument)
 	TxMessage.TransmitGlobalTime=DISABLE;
   for(;;)
   {
-		if(osEventFlagsWait (Can_EventHandle,CAN_EVENTBIT_1,osFlagsWaitAny, NULL)&CAN_EVENTBIT_1){
+		#define candelay 5
+		if(osEventFlagsGet (Can_EventHandle)&CAN_EVENTBIT_1){
+			osEventFlagsClear (Can_EventHandle, CAN_EVENTBIT_1);
 			TxMessage.StdId=Wit_StdId_xy;
 			TxMessage.DLC=sizeof(wit_msg[0]);
 			while(HAL_CAN_GetTxMailboxesFreeLevel(&hcan1) < 1);
 			if(HAL_CAN_AddTxMessage(&hcan1,&TxMessage,wit_msg[0],&can_tx_mailbox) != HAL_OK){
 				printf ("数据发送失败！\r\n");
 			}
-			osDelay(10);
+			osDelay(candelay);
 			TxMessage.StdId=Wit_StdId_xy+1;
 			TxMessage.DLC=sizeof(wit_msg[1]);
 			while(HAL_CAN_GetTxMailboxesFreeLevel(&hcan1) < 1);
 			if(HAL_CAN_AddTxMessage(&hcan1,&TxMessage,wit_msg[1],&can_tx_mailbox) != HAL_OK){
 				printf ("数据发送失败！\r\n");
 			}
-			osDelay(10);
+			osDelay(candelay);
 			TxMessage.StdId=Wit_StdId_xy+2;
 			TxMessage.DLC=sizeof(wit_msg[2]);
 			while(HAL_CAN_GetTxMailboxesFreeLevel(&hcan1) < 1);
 			if(HAL_CAN_AddTxMessage(&hcan1,&TxMessage,wit_msg[2],&can_tx_mailbox) != HAL_OK){
 				printf ("数据发送失败！\r\n");
-			}			
+			}
+			osDelay(candelay);
+		}
+		if(osEventFlagsGet (Can_EventHandle)&CAN_EVENTBIT_2){
+			osEventFlagsClear (Can_EventHandle, CAN_EVENTBIT_2);
+			TxMessage.StdId=Tyre_StdId;
+			TxMessage.DLC=sizeof(tyre_msg);
+			while(HAL_CAN_GetTxMailboxesFreeLevel(&hcan1) < 1);
+			if(HAL_CAN_AddTxMessage(&hcan1,&TxMessage,tyre_msg,&can_tx_mailbox) != HAL_OK){
+				printf ("数据发送失败！\r\n");
+			}
+			osDelay(candelay);	
+		}
+		if(osEventFlagsGet (Can_EventHandle)&CAN_EVENTBIT_4){
+			osEventFlagsClear (Can_EventHandle, CAN_EVENTBIT_4);
+
 			TxMessage.StdId=GPS_StdId;
 			TxMessage.DLC=sizeof(speedfloat_tx.data);
 			while(HAL_CAN_GetTxMailboxesFreeLevel(&hcan1) < 1);
 			if(HAL_CAN_AddTxMessage(&hcan1,&TxMessage,speedfloat_tx.data,&can_tx_mailbox) != HAL_OK){
 				printf ("数据发送失败！\r\n");
 			}
-			osDelay(10);			
+			osDelay(candelay);			
 		}
-		if(osEventFlagsWait (Can_EventHandle,CAN_EVENTBIT_5,osFlagsWaitAny, NULL)&CAN_EVENTBIT_5){
+		if(osEventFlagsGet (Can_EventHandle)&CAN_EVENTBIT_5){
+			osEventFlagsClear (Can_EventHandle, CAN_EVENTBIT_5);
 			TxMessage.StdId=CLK_StdId;
 			TxMessage.DLC=sizeof(Clkvalue);
 			while(HAL_CAN_GetTxMailboxesFreeLevel(&hcan1) < 1);
 			if(HAL_CAN_AddTxMessage(&hcan1,&TxMessage,Clkvalue,&can_tx_mailbox) != HAL_OK){
 				printf ("数据发送失败！\r\n");
 			}
-			osDelay(10);
+			osDelay(candelay);
 		}
-		if(osEventFlagsWait (Can_EventHandle,CAN_EVENTBIT_6,osFlagsWaitAny, NULL)&CAN_EVENTBIT_6){
+		if(osEventFlagsGet (Can_EventHandle)&CAN_EVENTBIT_6){
+			osEventFlagsClear (Can_EventHandle, CAN_EVENTBIT_6);
 			TxMessage.StdId=XJWY_StdId;
 			TxMessage.DLC=sizeof(xjwy_msg);
 			while(HAL_CAN_GetTxMailboxesFreeLevel(&hcan1) < 1);
 			if(HAL_CAN_AddTxMessage(&hcan1,&TxMessage,xjwy_msg,&can_tx_mailbox) != HAL_OK){
 				printf ("数据发送失败！\r\n");
 			}		
-			osDelay(10);			
+			osDelay(candelay);			
 		}
-		if(osEventFlagsWait (Can_EventHandle,CAN_EVENTBIT_7,osFlagsWaitAny, NULL)&CAN_EVENTBIT_7){
+		if(osEventFlagsGet (Can_EventHandle)&CAN_EVENTBIT_7){
+			osEventFlagsClear (Can_EventHandle, CAN_EVENTBIT_7);
 			TxMessage.StdId=OADC_StdId;
 			TxMessage.DLC=sizeof(oadc_msg);
 			while(HAL_CAN_GetTxMailboxesFreeLevel(&hcan1) < 1);
 			if(HAL_CAN_AddTxMessage(&hcan1,&TxMessage,oadc_msg,&can_tx_mailbox) != HAL_OK){
 				printf ("数据发送失败！\r\n");
 			}
-			osDelay(10);			
+			osDelay(candelay);			
 		}
-		if(osEventFlagsWait (Can_EventHandle,CAN_EVENTBIT_8,osFlagsWaitAny, NULL)&CAN_EVENTBIT_8){
+		if(osEventFlagsGet (Can_EventHandle)&CAN_EVENTBIT_8){
+			osEventFlagsClear (Can_EventHandle, CAN_EVENTBIT_8);
 			TxMessage.StdId=DTU_StdId;
 			TxMessage.DLC=sizeof(dtu_device1.Network_size);
+//			printf("dtu_device1.Network_size = %d\r\n",dtu_device1.Network_size);
 			while(HAL_CAN_GetTxMailboxesFreeLevel(&hcan1) < 1);
 			if(HAL_CAN_AddTxMessage(&hcan1,&TxMessage,&dtu_device1.Network_size,&can_tx_mailbox) != HAL_OK){
 				printf ("数据发送失败！\r\n");
 			}
-			osDelay(10);	
+			osDelay(candelay);	
 		}
 		osDelay(1);
 	}
   /* USER CODE END Cantx_Handle */
+}
+
+/* USER CODE BEGIN Header_TyreSpeed_Handle */
+/**
+* @brief Function implementing the TyreSpeedTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_TyreSpeed_Handle */
+void TyreSpeed_Handle(void *argument)
+{
+  /* USER CODE BEGIN TyreSpeed_Handle */
+  /* Infinite loop */
+	uint8_t tyrespeed[64] = {0};
+  for(;;)
+  {
+		/* 左前轮 */
+		if(osEventFlagsGet (MT_EventHandle)&MT_EVENTBIT_1){
+			osEventFlagsClear (MT_EventHandle, MT_EVENTBIT_1);
+			if (mtspeed1.Endup_Flag != 0)                         //轮速信号捕获完成
+			{
+				if(mtspeed1.Total_Time_M1 == 0){
+					mtspeed1.Rotate_Speed = 0;
+					mtspeed1.Total_Time_M2 = 0;
+					mtspeed1.Endup_Flag = 0;
+				}
+				else{
+					mtspeed1.Endup_Flag = 0;
+					mtspeed1.Rotate_Speed = (5000.0*60*mtspeed1.Total_Time_M1)/(F_TOOTH_NUM*mtspeed1.Total_Time_M2);    //计算转速(r/min)
+//          printf(" SPEED1 = %d,M1 = %d,M2 =  %d\r\n ",mtspeed1.Rotate_Speed,mtspeed1.Total_Time_M1,mtspeed1.Total_Time_M2);    					
+					mtspeed1.Total_Time_M1 = 0;
+					mtspeed1.Total_Time_M2 = 0;
+				}
+				mtspeed1.startcount = 0;
+				HAL_TIM_IC_Start_IT(&htim2,TIM_CHANNEL_2);
+			}
+		}
+		/* 右后轮 */
+		if(osEventFlagsGet (MT_EventHandle)&MT_EVENTBIT_2){
+			osEventFlagsClear (MT_EventHandle, MT_EVENTBIT_2);
+			if (mtspeed2.Endup_Flag != 0)                         //轮速信号捕获完成
+			{
+				if(mtspeed2.Total_Time_M1 == 0){
+					mtspeed2.Rotate_Speed = 0;
+					mtspeed2.Total_Time_M2 = 0;
+					mtspeed2.Endup_Flag = 0;
+				}
+				else{
+					mtspeed2.Endup_Flag = 0;
+					mtspeed2.Rotate_Speed = (5000.0*60*mtspeed2.Total_Time_M1)/(Q_TOOTH_NUM*mtspeed2.Total_Time_M2);    //计算转速(r/min)
+//					printf(" SPEED2 = %d,M1 = %d,M2 =  %d\r\n ",mtspeed2.Rotate_Speed,mtspeed2.Total_Time_M1,mtspeed2.Total_Time_M2);
+					mtspeed2.Total_Time_M1 = 0;
+					mtspeed2.Total_Time_M2 = 0;
+				}
+				mtspeed2.startcount = 0;
+				HAL_TIM_IC_Start_IT(&htim2,TIM_CHANNEL_1);
+			}
+		}
+		/* 右前轮 */
+		if(osEventFlagsGet (MT_EventHandle)&MT_EVENTBIT_3){
+			osEventFlagsClear (MT_EventHandle, MT_EVENTBIT_3);
+			if (mtspeed3.Endup_Flag != 0)                         //轮速信号捕获完成
+			{
+				if(mtspeed3.Total_Time_M1 == 0){
+					mtspeed3.Rotate_Speed = 0;
+					mtspeed3.Total_Time_M2 = 0;
+					mtspeed3.Endup_Flag = 0;
+				}
+				else{
+					mtspeed3.Endup_Flag = 0;
+					mtspeed3.Rotate_Speed = (5000.0*60*mtspeed3.Total_Time_M1)/(F_TOOTH_NUM*mtspeed3.Total_Time_M2);    //计算转速(r/min)
+//					printf(" SPEED3 = %d,M1 = %d,M2 =  %d\r\n ",mtspeed3.Rotate_Speed,mtspeed3.Total_Time_M1,mtspeed3.Total_Time_M2);
+					mtspeed3.Total_Time_M1 = 0;
+					mtspeed3.Total_Time_M2 = 0;
+				}
+				mtspeed3.startcount = 0;
+				HAL_TIM_IC_Start_IT(&htim5,TIM_CHANNEL_1);
+			}
+		}
+		/* 左后轮 */
+		if(osEventFlagsGet (MT_EventHandle)&MT_EVENTBIT_4){
+			osEventFlagsClear (MT_EventHandle, MT_EVENTBIT_4);
+			if (mtspeed4.Endup_Flag != 0)                         //轮速信号捕获完成
+			{
+				if(mtspeed4.Total_Time_M1 == 0){
+					mtspeed4.Rotate_Speed = 0;
+					mtspeed4.Total_Time_M2 = 0;
+					mtspeed4.Endup_Flag = 0;
+				}
+				else{
+					mtspeed4.Endup_Flag = 0;
+					mtspeed4.Rotate_Speed = (5000.0*60*mtspeed4.Total_Time_M1)/(Q_TOOTH_NUM*mtspeed4.Total_Time_M2);    //计算转速(r/min)
+//					printf(" SPEED4 = %d,M1 = %d,M2 =  %d\r\n ",mtspeed4.Rotate_Speed,mtspeed4.Total_Time_M1,mtspeed4.Total_Time_M2);
+					mtspeed4.Total_Time_M1 = 0;
+					mtspeed4.Total_Time_M2 = 0;
+				}
+				mtspeed4.startcount = 0;
+				HAL_TIM_IC_Start_IT(&htim3,TIM_CHANNEL_2);
+			}
+		}
+		tyre_msg[0] = (mtspeed1.Rotate_Speed >> 8);
+		tyre_msg[1] = mtspeed1.Rotate_Speed &0xff;	
+		tyre_msg[2] = (mtspeed2.Rotate_Speed >> 8);
+		tyre_msg[3] = mtspeed2.Rotate_Speed &0xff;
+		tyre_msg[4] = (mtspeed3.Rotate_Speed >> 8);
+		tyre_msg[5] = mtspeed3.Rotate_Speed &0xff;
+		tyre_msg[6] = (mtspeed4.Rotate_Speed >> 8);
+		tyre_msg[7] = mtspeed4.Rotate_Speed &0xff;
+		osEventFlagsSet (Can_EventHandle,CAN_EVENTBIT_2);
+		if(dtu_device1.Onenet_Off_flag == 0&&dtu_device1.st_flag == 0){
+//			printf("EVENTBIT_10\r\n");
+			OneNet_Receive(tyrespeed,TYRE_Device_ID,sizeof(tyrespeed));
+		}
+		osDelay(Type_Dat_Handle_Delay);
+	}
+  /* USER CODE END TyreSpeed_Handle */
 }
 
 /* Private application code --------------------------------------------------*/
@@ -1100,13 +1273,14 @@ static void OneNet_Receive(uint8_t *Send_date,uint8_t device_id,uint8_t dat_len)
 //	osEventFlagsSet(Vcu_Event1Handle, EVENTBIT_3);
 //	printf("%d",osEventFlagsGet (Vcu_Event1Handle)&EVENTBIT_3);
 	if((osEventFlagsGet(Vcu_Event1Handle)&EVENTBIT_3) == 0){   //判断是否处于控制阶段 0处于配置状态 1处于透传状态
+		dtu_device1.st_flag = 1;
 		while(j<5){
 					/*DTU进入透传状态*/
 			 res = dtu_enter_transfermode();
 			 if( res != 0 ){
 				 j++;
 					printf("DTU enter transparent mode failed !\r\n");
-				 osDelay(89);
+				 osDelay(10);
 			 }
 			 else{
 				 osEventFlagsSet(Vcu_Event1Handle, EVENTBIT_3);	//			 dtu_device1.Dtumode_Switch_flag = 1;
@@ -1119,8 +1293,10 @@ static void OneNet_Receive(uint8_t *Send_date,uint8_t device_id,uint8_t dat_len)
 				 break;
 			 }		
 		}
-	 }
-	 else{
+		dtu_device1.st_flag = 0;
+		j = 0;
+	}
+	else{
 			OneNet_FillBuf(Send_date,device_id);
 			HAL_UART_Transmit(&huart2,Send_date,dat_len,0xff);
 	 }
@@ -1146,9 +1322,14 @@ static void OneNet_FillBuf(uint8_t *buff,uint8_t devicer_id)
 			            ,wit_dat1.fAngle[0], wit_dat1.fAngle[1], wit_dat1.fAngle[2]); //WIT_ACC_AYRO_ANGLE是数据流的一个名称，wit_dat1是数据值;
 			break;
 		}
-		case(XJ1_Device_ID):{
+		case(TYRE_Device_ID):{
 			memset(buff, 0, sizeof(buff));
-			sprintf((char *)buff, "{'Oil_Displacement':'%d'}",Wy_dat.displacement_dat);
+			sprintf((char *)buff, "{'Tyre_speed':'%d,%d,%d,%d'}",mtspeed1.Rotate_Speed,mtspeed2.Rotate_Speed,mtspeed3.Rotate_Speed,mtspeed4.Rotate_Speed);
+			break;
+		}
+		case(XJ_Device_ID):{
+			memset(buff, 0, sizeof(buff));
+			sprintf((char *)buff, "{'XJWY_Dat':'%d,%d,%d,%d,%d'}",Wy_dat.displacement_dat,Wy_dat.xjwy1_dat,Wy_dat.xjwy2_dat,Wy_dat.xjwy3_dat,Wy_dat.xjwy4_dat);
 			break;
 		}
 		case(GPS_Device_ID):{
@@ -1198,15 +1379,14 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 static void Gps_Msg_Show(void)
 {
 // 	float tp;
-	uint8_t wit_id = GPS_Device_ID;
-	uint8_t Send_date[128] = {0};
+	uint8_t Speed_date[64] = {0};
 //	tp=gpsx.longitude;	
 ////	printf("Longitude:%.5f %1c\r\n",tp/=100000,gpsx.ewhemi);//得到经度字符串 	   
 //	tp=gpsx.latitude;	
 ////	printf("Latitude:%.5f %1c \r\n",tp/=100000,gpsx.nshemi);//得到纬度字符串
 //	tp=gpsx.altitude;	   
 ////	printf("Altitude:%.1fm \r\n",tp/=10);//得到高度字符串
-	speedfloat_tx.value = gpsx.speed/1000;
+//	speedfloat_tx.value = gpsx.speed/1000;
 //	printf("Speed:%.3fkm/h \r\n",speedfloat_tx.value);//得到速度字符串
 //	if(gpsx.fixmode<=3)														//定位状态
 //	{  
@@ -1214,8 +1394,8 @@ static void Gps_Msg_Show(void)
 //	}
 //	printf("Valid satellite:%02d\r\n",gpsx.posslnum);//用于定位的卫星数
 //	printf("Visible satellite:%02d\r\n",gpsx.svnum%100);//可见卫星数		
-//	printf("UTC Date:%04d/%02d/%02d   \r\n",gpsx.utc.year,gpsx.utc.month,gpsx.utc.date); //显示UTC日期
-//	printf("UTC Time:%02d:%02d:%02d   \r\n",gpsx.utc.hour,gpsx.utc.min,gpsx.utc.sec);//显示UTC时间
+	printf("UTC Date:%04d/%02d/%02d   \r\n",gpsx.utc.year,gpsx.utc.month,gpsx.utc.date); //显示UTC日期
+	printf("UTC Time:%02d:%02d:%02d   \r\n",gpsx.utc.hour,gpsx.utc.min,gpsx.utc.sec);//显示UTC时间
 	if(UpdateTime_flag != 1&&gpsx.utc.year > 2020){
 		if(gpsx.utc.hour > 0&&gpsx.utc.min > 0&&gpsx.utc.sec > 0){
 			Clkvalue[0] = gpsx.utc.year - 2000;
@@ -1231,11 +1411,13 @@ static void Gps_Msg_Show(void)
 			osDelay(20);
 		}
 	}
-	osEventFlagsSet(Can_EventHandle, CAN_EVENTBIT_4);
-	if((osEventFlagsGet (Vcu_Event1Handle)&EVENTBIT_9) == EVENTBIT_9&&dtu_device1.Onenet_Off_flag == 0){
-		OneNet_Receive(Send_date,wit_id,sizeof(Send_date));
+ osEventFlagsSet(Can_EventHandle, CAN_EVENTBIT_4);
+	if(dtu_device1.Onenet_Off_flag == 0&&dtu_device1.st_flag == 0){
+		OneNet_Receive(Speed_date,GPS_Device_ID,sizeof(Speed_date));
 	}
 }
+
+
 
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 {
@@ -1248,52 +1430,102 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 		if(mtspeed2.Startup_Flag == 1){
 			Pulse_Count2++;
 		}
-		if(mtspeed3.Startup_Flag == 1){
-			Pulse_Count3++;
-		}
-		if(mtspeed4.Startup_Flag == 1){
-			Pulse_Count4++;
-		}
 		if(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_1) == 1)
 		{
-			if(mtspeed1.Endup_Flag != 0)                                                       //采样周期结束捕获第二次上升沿
-			{
-				HAL_TIM_IC_Stop_IT(htim,TIM_CHANNEL_1);																//禁止捕获通道1中断
-				mtspeed1.Total_Time_M1 = Pulse_Count1;                                  //获取采样周期内的M1
-				mtspeed1.Total_Time_M2 = __HAL_TIM_GetCounter(htim) - 	mtspeed1.t1_st_value;									//获取高频时钟周期M2
-				Pulse_Count1 = 1;                                                        //脉冲置1
+			mtspeed1.speed_zero = 0;
+			if(mtspeed1.Endup_Flag != 0){                                                       //采样周期结束捕获第二次上升沿
+//				printf("Capture2\r\n");
+				HAL_TIM_IC_Stop_IT(htim,TIM_CHANNEL_2);																					 //禁止捕获通道1中断
+				mtspeed1.Total_Time_M1 = Pulse_Count1;                                 					 //获取采样周期内的M1
+				mtspeed1.Total_Time_M2 = __HAL_TIM_GetCounter(htim) - 	mtspeed1.memory_value;		 //获取高频时钟周期M2
+				Pulse_Count1 = 1;                                                                //脉冲置1
 				mtspeed1.Startup_Flag = 0;                                                       //首次标志清零
-				mtspeed1.Actual_Endflag = 1;                                                     //实际采样结束标志EVENTBIT_2
-				mtspeed1.Endup_Flag = 0;
-				osEventFlagsSet(Mt_EventHandle, MT_EVENTBIT_1);
+				osEventFlagsSet (MT_EventHandle, MT_EVENTBIT_1);
+			}else{
+//				printf("Capture1\r\n");
+				if(mtspeed1.startcount == 0){
+					mtspeed1.startcount = 1;
+					mtspeed1.Startup_Flag = 1;							                                //标记首次捕获上升沿
+				  mtspeed1.memory_value = __HAL_TIM_GetCounter(&htim2);
+				  mtspeed1.timecountflag = 1;
+				}
 			}
-			else                            
-			{
-//				printf("timer 1\r\n");
-				mtspeed1.Startup_Flag = 1;							                                //标记首次捕获上升沿
-				mtspeed1.Sampling_Flag = 1;
+		}
+		if(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_5) == 1)
+		{
+			mtspeed2.speed_zero = 0;
+			if(mtspeed2.Endup_Flag != 0){                                                       //采样周期结束捕获第二次上升沿
+				HAL_TIM_IC_Stop_IT(htim,TIM_CHANNEL_1);																					 //禁止捕获通道1中断
+				mtspeed2.Total_Time_M1 = Pulse_Count2;                                 					 //获取采样周期内的M1
+				mtspeed2.Total_Time_M2 = __HAL_TIM_GetCounter(htim) - 	mtspeed2.memory_value;		 //获取高频时钟周期M2
+				Pulse_Count2 = 1;                                                                //脉冲置1
+				mtspeed2.Startup_Flag = 0;                                                       //首次标志清零                                                    //实际采样结束标志
+				osEventFlagsSet (MT_EventHandle, MT_EVENTBIT_2);
+			}else{
+				if(mtspeed2.startcount == 0){
+					mtspeed2.startcount = 1;
+					mtspeed2.Startup_Flag = 1;							                                //标记首次捕获上升沿
+				  mtspeed2.memory_value = __HAL_TIM_GetCounter(&htim2);
+				  mtspeed2.timecountflag = 1;
+				}				                             					                            //标记首次捕获上升沿
 			}
 		}
 	}
+	if(htim->Instance == TIM5)
+	{
+		
+		if(mtspeed3.Startup_Flag == 1){
+			Pulse_Count3++;
+		}
+		if(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_0) == 1)
+		{
+			mtspeed3.speed_zero = 0;
+			if(mtspeed3.Endup_Flag != 0){                                                       //采样周期结束捕获第二次上升沿
+				HAL_TIM_IC_Stop_IT(&htim5,TIM_CHANNEL_1);																					 //禁止捕获通道1中断
+				mtspeed3.Total_Time_M1 = Pulse_Count3;                                 					 //获取采样周期内的M1
+				mtspeed3.Total_Time_M2 = __HAL_TIM_GetCounter(&htim5) - 	mtspeed3.memory_value;		 //获取高频时钟周期M2
+				Pulse_Count3 = 1;                                                                //脉冲置1
+				mtspeed3.Startup_Flag = 0;                                                       //首次标志清零                                                    //实际采样结束标志
+				osEventFlagsSet (MT_EventHandle, MT_EVENTBIT_3);
+			}else{
+				if(mtspeed3.startcount == 0){
+					mtspeed3.startcount = 1;
+					mtspeed3.Startup_Flag = 1;							                                //标记首次捕获上升沿
+				  mtspeed3.memory_value = __HAL_TIM_GetCounter(&htim5);
+				  mtspeed3.timecountflag = 1;
+				}				                             					                            //标记首次捕获上升沿
+			}
+		}		
+	}
+	if(htim->Instance == TIM3)
+	{
+		if(mtspeed4.Startup_Flag == 1){
+			Pulse_Count4++;
+		}
+		if(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_7) == 1)
+		{
+			mtspeed4.speed_zero = 0;                                                            
+			if(mtspeed4.Endup_Flag != 0){                                                       //采样周期结束捕获第二次上升沿
+				__HAL_TIM_DISABLE(&htim3);
+				HAL_TIM_IC_Stop_IT(&htim3,TIM_CHANNEL_2);																					 //禁止捕获通道1中断
+				mtspeed4.Total_Time_M1 = Pulse_Count4;                                 					 //获取采样周期内的M1
+				mtspeed4.Total_Time_M2 = __HAL_TIM_GetCounter(&htim3);		 											//获取高频时钟周期M2
+				Pulse_Count4 = 1;                                                                //脉冲置1
+				mtspeed4.Startup_Flag = 0;                                                       //首次标志清零                                                     //实际采样结束标志
+				osEventFlagsSet (MT_EventHandle, MT_EVENTBIT_4);
+			}else{
+				if(mtspeed4.startcount == 0){
+					__HAL_TIM_SET_COUNTER(&htim3,0);
+					__HAL_TIM_ENABLE(&htim3);
+					mtspeed4.startcount = 1;
+					mtspeed4.Startup_Flag = 1;							                                //标记首次捕获上升沿
+				  mtspeed4.memory_value = __HAL_TIM_GetCounter(&htim3);
+				  mtspeed4.timecountflag = 1;
+				}				                             					                            //标记首次捕获上升沿
+			}
+		}	
+	}
 }
-
-//void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
-//{
-//	static uint8_t time = 0;
-//  if (htim->Instance == TIM14) {
-//			time++;
-//			if(time >= 8)
-//			{
-//				mtspeed1.Sampling_Flag = 0;
-//				mtspeed1.Endup_Flag = 1;                                           //规定周期采样结束标志
-//				time = 0;
-//				TIM_Cmd(BASIC_TIMX,DISABLE);                                       //关闭定时器14计数
-//			}
-//		}
-//		
-//  }
-//}
-
 
 /* USER CODE END Application */
 

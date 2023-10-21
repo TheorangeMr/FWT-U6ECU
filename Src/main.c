@@ -36,9 +36,7 @@
 #include "RingBuffer.h"
 #include "string.h"
 #include "gps.h"
-
-
-
+#include "mtspeed.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -59,6 +57,13 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+
+extern mt_rotate mtspeed1;
+extern mt_rotate mtspeed2;
+extern mt_rotate mtspeed3;
+extern mt_rotate mtspeed4;
+
+
 uint8_t cantx_dat[8] = {0};
 
 //文件系统
@@ -150,6 +155,8 @@ int main(void)
   MX_TIM14_Init();
   MX_IWDG_Init();
   MX_ADC2_Init();
+  MX_TIM3_Init();
+  MX_TIM5_Init();
   /* USER CODE BEGIN 2 */
 	
 	//nine-axis dvice initialize
@@ -280,7 +287,65 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
-
+	#define mt_cycle   300                     //mt算法采样周期
+	#define reset_cycle   800                  //当不采样时的清零周期
+  else if (htim->Instance == TIM14) {
+		if(mtspeed1.timecountflag){
+			mtspeed1.timecount++;
+			if(mtspeed1.timecount >= mt_cycle){
+				mtspeed1.timecount = 0;
+				mtspeed1.timecountflag = 0;
+				mtspeed1.Endup_Flag = 1;                                           //规定周期采样结束标志			
+			}
+		}else{
+			mtspeed1.speed_zero++;
+			if(mtspeed1.speed_zero >= reset_cycle){
+				mtspeed1.Rotate_Speed = 0;
+			}
+		}
+		if(mtspeed2.timecountflag){
+			mtspeed2.timecount++;
+			if(mtspeed2.timecount >= mt_cycle){
+				mtspeed2.timecountflag = 0;
+				mtspeed2.timecount = 0;
+				mtspeed2.Endup_Flag = 1;                                           //规定周期采样结束标志			
+			}		
+		}else{
+			mtspeed2.speed_zero++;
+			if(mtspeed2.speed_zero >= reset_cycle){
+				mtspeed2.Rotate_Speed = 0;
+			}
+		}
+		if(mtspeed3.timecountflag){
+			mtspeed3.timecount++;
+			if(mtspeed3.timecount >= mt_cycle){
+				mtspeed3.timecountflag = 0;
+				mtspeed3.timecount = 0;
+				mtspeed3.Endup_Flag = 1;                                           //规定周期采样结束标志	
+			}  
+		}else{
+			mtspeed3.speed_zero++;
+			if(mtspeed3.speed_zero >= reset_cycle){
+				mtspeed3.Rotate_Speed = 0;
+			}
+		}
+		if(mtspeed4.timecountflag){
+			mtspeed4.timecount++;
+			if(mtspeed4.timecount >= mt_cycle){
+				mtspeed4.timecountflag = 0;
+				mtspeed4.timecount = 0;
+				mtspeed4.Endup_Flag = 1;                                           //规定周期采样结束标志			
+			}    
+		}else{
+			mtspeed4.speed_zero++;
+			if(mtspeed4.speed_zero >= reset_cycle){
+				mtspeed4.Rotate_Speed = 0;
+			}
+		}
+	}
+	else if(htim->Instance == TIM3){
+		printf("timer3 timeout!!!/r/n");
+	}
   /* USER CODE END Callback 1 */
 }
 

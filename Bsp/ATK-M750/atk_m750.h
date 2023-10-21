@@ -37,8 +37,9 @@ typedef struct {
 	uint8_t Onenet_Off_flag;
 	uint8_t Dtu_At_Clkflag;
 	uint8_t Network_size;
-	uint32_t dtu_rxlen;
 	uint8_t dtu_rxbuf[DTU_ONENETDATE_RX_BUF];
+	uint8_t st_flag;
+	uint32_t dtu_rxlen;
 }_dtu_4g_device;
 
 

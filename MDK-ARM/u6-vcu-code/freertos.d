@@ -60,3 +60,4 @@ u6-vcu-code\freertos.o: ../Bsp/wit_c_sdk/REG.h
 u6-vcu-code\freertos.o: D:\software\keil 5 install\ARM\ARMCC\Bin\..\include\stdlib.h
 u6-vcu-code\freertos.o: ../Bsp/GPS/gps.h
 u6-vcu-code\freertos.o: ../Inc/usart.h
+u6-vcu-code\freertos.o: ../Bsp/MT_textspeed/mtspeed.h

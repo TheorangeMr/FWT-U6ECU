@@ -86,7 +86,7 @@ static int send_cmd_to_dtu(char *cmd, char *ask, uint32_t timeout)
             {
                 return -2;
             }
-						osDelay(100);
+						vTaskDelay(100);
         }
     }
 }
@@ -478,12 +478,12 @@ int dtu_config_init(_dtu_work_mode_eu work_mode)
     {
         return -2;
     }
-//    /*3.DTU进入透传状态*/
-//    res = dtu_enter_transfermode();
-//    if( res != 0 )
-//    {
-//        return -3;
-//    }
+    /*3.DTU进入透传状态*/
+    res = dtu_enter_transfermode();
+    if( res != 0 )
+    {
+        return -3;
+    }
     return 0;
 }
 
@@ -523,11 +523,11 @@ int dtu_send_sms(char *phone, char *sms_msg)
     }
 
     /*3.DTU进入透传状态*/
-    res = dtu_enter_transfermode();
-    if( res != 0 )
-    {
-        return -3;
-    }
+//    res = dtu_enter_transfermode();
+//    if( res != 0 )
+//    {
+//        return -3;
+//    }
 
     return ret;
 }
