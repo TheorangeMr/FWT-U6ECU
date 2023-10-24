@@ -388,7 +388,6 @@ uint8_t Ublox_Cfg_Rate(uint16_t measrate,uint8_t reftime)
 	cfg_rate->navrate=1;		//导航速率（周期），固定为1
 	cfg_rate->timeref=reftime; 	//参考时间为GPS时间
 	Ublox_CheckSum((uint8_t*)(&cfg_rate->id),sizeof(_ublox_cfg_rate)-4,&cfg_rate->cka,&cfg_rate->ckb);
-//	printf("len = %d",sizeof(_ublox_cfg_rate));								14
 	Ublox_Send_Date((uint8_t*)cfg_rate,sizeof(_ublox_cfg_rate));//发送数据给NEO-6M 
 	return Ublox_Cfg_Ack_Check();
 }

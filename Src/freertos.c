@@ -80,7 +80,7 @@ typedef StaticEventGroup_t osStaticEventGroupDef_t;
 #define   GPS_Handle_Delay              50
 #define   OD_Handle_Delay               200
 #define   ADC_Handle_Delay              20000
-#define   DTU_Signal_Delay              20000
+#define   DTU_Signal_Delay              30000
 
 
 /*
@@ -147,6 +147,7 @@ extern UART_HandleTypeDef huart3;
 extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim3;
 extern TIM_HandleTypeDef htim5;
+extern TIM_HandleTypeDef htim7;
 extern TIM_HandleTypeDef htim14;
 
 
@@ -872,25 +873,17 @@ void GPS_Init_Handle(void *argument)
   /* USER CODE BEGIN GPS_Init_Handle */
   /* Infinite loop */
 	uint8_t key=0xff;
-	uint8_t i = 0;
   for(;;)
   {
-		if(Ublox_Cfg_Rate(1000,1)!=0){	//设置定位信息更新速度为1000ms,顺便判断GPS模块是否在位.
-			while((Ublox_Cfg_Rate(1000,1)!=0)&&key){	//持续判断,直到可以检查到WT-GPS_BD,且数据保存成功
-				Ublox_Cfg_Tp(1000000,100000,1);	//设置PPS为1秒钟输出1次,脉冲宽度为100ms
+		if(Ublox_Cfg_Rate(800,1)!=0)               //设置定位信息更新速度为1000ms,顺便判断GPS模块是否在位.
+	  {	
+			printf("WT-GPS_BD Setting...\r\n");
+			while((Ublox_Cfg_Rate(800,1)!=0)&&key){	//持续判断,直到可以检查到WT-GPS_BD,且数据保存成功
+				Ublox_Cfg_Tp(900000,100000,1);	//设置PPS为1秒钟输出1次,脉冲宽度为100ms
 				key=Ublox_Cfg_Cfg_Save();		//保存配置
-				i++;
-        if(i > 5){
-					break;
-				}	
 			}
-			if(i>5){
-				printf("GPS Set Fail\r\n");
-			}
-			else{
-				printf("GPS Set Success\r\n");
-			}
-			osDelay(500);
+			printf("WT-GPS_BD Set Done!!\r\n");
+			osDelay(1);
 		}
 		osEventFlagsSet(Vcu_Event1Handle, EVENTBIT_8);
     vTaskDelete(GPS_Init_TaskHandle);
@@ -1349,21 +1342,15 @@ static void OneNet_FillBuf(uint8_t *buff,uint8_t devicer_id)
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-	__IO static uint32_t UsartTick = 0;
-	uint8_t cflag = 0;
 	if(huart->Instance == USART3){
 		if((USART3_RX_STA&(1<<15))==0)//接收完的一批数据,还没有被处理,则不再接收其他数据
 		{
 			if(USART3_RX_STA<USART3_MAX_RECV_LEN)	//还可以接收数据
 			{
+				__HAL_TIM_SetCounter(&htim7,0);
 				if(USART3_RX_STA==0) 
 				{
-					cflag = 1;
-					UsartTick = uwTick;
-				}
-				else if(uwTick - UsartTick > 10 && cflag == 1){
-					cflag = 0;
-					USART3_RX_STA|=1<<15;	//标记接收完成
+					__HAL_TIM_ENABLE(&htim7);
 				}
 				USART3_RX_BUF[USART3_RX_STA++]=usart_rx_char;	//记录接收到的值	 
 			}else 
@@ -1386,22 +1373,22 @@ static void Gps_Msg_Show(void)
 ////	printf("Latitude:%.5f %1c \r\n",tp/=100000,gpsx.nshemi);//得到纬度字符串
 //	tp=gpsx.altitude;	   
 ////	printf("Altitude:%.1fm \r\n",tp/=10);//得到高度字符串
-//	speedfloat_tx.value = gpsx.speed/1000;
-//	printf("Speed:%.3fkm/h \r\n",speedfloat_tx.value);//得到速度字符串
+	speedfloat_tx.value = gpsx.speed/1000;
+	printf("Speed:%.3fkm/h \r\n",speedfloat_tx.value);//得到速度字符串
 //	if(gpsx.fixmode<=3)														//定位状态
 //	{  
 //		printf("Fix Mode:%s\r\n",fixmode_tbl[gpsx.fixmode]);  
 //	}
 //	printf("Valid satellite:%02d\r\n",gpsx.posslnum);//用于定位的卫星数
 //	printf("Visible satellite:%02d\r\n",gpsx.svnum%100);//可见卫星数		
-	printf("UTC Date:%04d/%02d/%02d   \r\n",gpsx.utc.year,gpsx.utc.month,gpsx.utc.date); //显示UTC日期
+//	printf("UTC Date:%04d/%02d/%02d   \r\n",gpsx.utc.year,gpsx.utc.month,gpsx.utc.date); //显示UTC日期
 	printf("UTC Time:%02d:%02d:%02d   \r\n",gpsx.utc.hour,gpsx.utc.min,gpsx.utc.sec);//显示UTC时间
-	if(UpdateTime_flag != 1&&gpsx.utc.year > 2020){
+	if(UpdateTime_flag != 1&&gpsx.utc.year > 2023){
 		if(gpsx.utc.hour > 0&&gpsx.utc.min > 0&&gpsx.utc.sec > 0){
 			Clkvalue[0] = gpsx.utc.year - 2000;
 			Clkvalue[1] = gpsx.utc.month;
-			Clkvalue[2] = gpsx.utc.date; 
-			Clkvalue[3] = gpsx.utc.hour + 7;
+			Clkvalue[2] = gpsx.utc.date;
+			Clkvalue[3] = gpsx.utc.hour + 8;
 			Clkvalue[4] = gpsx.utc.min;
 			Clkvalue[5] = gpsx.utc.sec;
 			for(uint8_t k = 0;k<6;k++){
@@ -1473,7 +1460,6 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 	}
 	if(htim->Instance == TIM5)
 	{
-		
 		if(mtspeed3.Startup_Flag == 1){
 			Pulse_Count3++;
 		}

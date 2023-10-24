@@ -62,7 +62,7 @@ extern mt_rotate mtspeed1;
 extern mt_rotate mtspeed2;
 extern mt_rotate mtspeed3;
 extern mt_rotate mtspeed4;
-
+extern __IO uint16_t USART3_RX_STA;
 
 uint8_t cantx_dat[8] = {0};
 
@@ -157,6 +157,7 @@ int main(void)
   MX_ADC2_Init();
   MX_TIM3_Init();
   MX_TIM5_Init();
+  MX_TIM7_Init();
   /* USER CODE BEGIN 2 */
 	
 	//nine-axis dvice initialize
@@ -345,6 +346,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 	}
 	else if(htim->Instance == TIM3){
 		printf("timer3 timeout!!!/r/n");
+	}
+	else if(htim->Instance == TIM7){
+//		printf("timer7 timeout!!!\r\n");
+		USART3_RX_STA|=1<<15;	//标记接收完成
+		__HAL_TIM_DISABLE(&htim7);
 	}
   /* USER CODE END Callback 1 */
 }
