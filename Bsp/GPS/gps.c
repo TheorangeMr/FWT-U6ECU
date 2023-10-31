@@ -345,7 +345,7 @@ uint8_t Ublox_Cfg_Prt(uint32_t baudrate)
  	cfg_prt->reserved5=0; 		//保留字节,设置为0 
 	Ublox_CheckSum((uint8_t*)(&cfg_prt->id),sizeof(_ublox_cfg_prt)-4,&cfg_prt->cka,&cfg_prt->ckb);
 	Ublox_Send_Date((uint8_t*)cfg_prt,sizeof(_ublox_cfg_prt));//发送数据给NEO-6M   
-	vTaskDelay(200);				//等待发送完成 
+	vTaskDelay(500);				//等待发送完成 
 	usart3_init(baudrate);	//重新初始化串口3  
 	return Ublox_Cfg_Ack_Check();//这里不会反回0,因为UBLOX发回来的应答在串口重新初始化的时候已经被丢弃了.
 } 

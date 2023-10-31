@@ -341,5 +341,7 @@ void usart3_init(uint32_t bound)
   {
     Error_Handler();
   }
+	__HAL_UART_ENABLE_IT(&huart3,UART_IT_RXNE);
+	HAL_UART_Receive_IT(&huart3,&usart_rx_char,1);
 }
 /* USER CODE END 1 */

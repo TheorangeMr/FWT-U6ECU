@@ -66,16 +66,6 @@ extern __IO uint16_t USART3_RX_STA;
 
 uint8_t cantx_dat[8] = {0};
 
-//文件系统
-FATFS fs;
-FIL fnew;
-FRESULT res_flash;
-UINT fnum;
-BYTE work[_MAX_SS];
-
-char ReadBuffer[512] = {0};
-char Fdat[50];
-
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -87,6 +77,37 @@ void MX_FREERTOS_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+
+//void creat_file(char * filename)
+//{
+//    int retSD = f_open(&fil, filename, FA_CREATE_ALWAYS | FA_WRITE); //打开文件，权限包括创建、写（如果没有该文件，会创建该文件）
+//    if(retSD==FR_OK) printf("\r\ncreater file sucess!!! \r\n");
+//    else printf("\r\ncreater file error : %d\r\n",retSD);
+//   // f_close(&fil); //关闭该文件
+//    //HAL_Delay(100);
+//}
+//void write_file(char * data,uint32_t len)
+//{
+//    uint32_t byteswritten;
+//    /*##-3- Write data to the text files ###############################*/
+//    int retSD = f_write(&fil, data, len, (void *)&byteswritten);
+//    if(retSD)
+//        printf(" write file error : %d\r\n",retSD);
+//    else
+//    {
+//        printf(" write file sucess!!! \r\n");
+//        printf(" write Data[%d] : %s\r\n",byteswritten,data);
+//    }
+//    /*##-4- Close the open text files ################################*/
+//    retSD = f_close(&fil);
+//    if(retSD)
+//        printf(" close error : %d\r\n",retSD);
+//    else
+//        printf(" close sucess!!! \r\n");
+//}
+
+
 /*
 	函数名：Wit_Can_Send_Msg()
 	功  能：CAN发送帧函数
@@ -168,39 +189,10 @@ int main(void)
 	
 	HAL_GPIO_WritePin(GPIOB,GPIO_PIN_3,GPIO_PIN_RESET);
 	HAL_GPIO_WritePin(GPIOA,GPIO_PIN_15,GPIO_PIN_RESET);
-
-	//挂载文件系统
-	res_flash = f_mount(&fs,"1:",1);
-  if(res_flash!=FR_OK)
-  {
-    printf("！！外部SD挂载文件系统失败。(%d)\r\n",res_flash);
-    printf("！！可能原因：SDIO_SD初始化不成功。\r\n");
-		if(res_flash == FR_NO_FILESYSTEM)
-		{
-			res_flash = f_mkfs("fwt:", FM_FAT32, 0, work, sizeof(work));
-			if(res_flash == FR_OK)
-			{
-				printf("》SD已成功格式化文件系统。\r\n");
-				/* 格式化后，先取消挂载 */
-				res_flash = f_mount(NULL,"1:",1);	
-				/* 重新挂载	*/			
-				res_flash = f_mount(&fs,"1:",1);
-				goto	repeat;
-			}
-			else
-			{
-				printf("《《格式化失败。》》\r\n");
-			}
-		}
-		goto	repeat;		
-    repeat:
-		;
-  }
-  else
-  {
-    printf("》文件系统挂载成功\r\n");
-  }
+	
+	BSP_SD_Init();
   printf("外设初始化\r\n");
+
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -246,7 +238,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLM = 25;
   RCC_OscInitStruct.PLL.PLLN = 336;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
-  RCC_OscInitStruct.PLL.PLLQ = 8;
+  RCC_OscInitStruct.PLL.PLLQ = 7;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();

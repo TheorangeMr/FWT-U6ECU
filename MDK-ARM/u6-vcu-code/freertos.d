@@ -61,3 +61,11 @@ u6-vcu-code\freertos.o: D:\software\keil 5 install\ARM\ARMCC\Bin\..\include\stdl
 u6-vcu-code\freertos.o: ../Bsp/GPS/gps.h
 u6-vcu-code\freertos.o: ../Inc/usart.h
 u6-vcu-code\freertos.o: ../Bsp/MT_textspeed/mtspeed.h
+u6-vcu-code\freertos.o: ../Inc/fatfs.h
+u6-vcu-code\freertos.o: ../Middlewares/Third_Party/FatFs/src/ff.h
+u6-vcu-code\freertos.o: ../Middlewares/Third_Party/FatFs/src/integer.h
+u6-vcu-code\freertos.o: ../Inc/ffconf.h
+u6-vcu-code\freertos.o: ../Inc/bsp_driver_sd.h
+u6-vcu-code\freertos.o: ../Middlewares/Third_Party/FatFs/src/ff_gen_drv.h
+u6-vcu-code\freertos.o: ../Middlewares/Third_Party/FatFs/src/diskio.h
+u6-vcu-code\freertos.o: ../Inc/sd_diskio.h

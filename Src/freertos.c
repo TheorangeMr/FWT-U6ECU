@@ -32,6 +32,8 @@
 #include "gps.h"
 #include "usart.h"
 #include "mtspeed.h"
+#include "fatfs.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -77,7 +79,7 @@ typedef StaticEventGroup_t osStaticEventGroupDef_t;
 #define   Wit_Dat_Handle_Delay          30
 #define   Type_Dat_Handle_Delay         200
 #define   Can_Rx_Handle_Delay           1
-#define   GPS_Handle_Delay              50
+#define   GPS_Handle_Delay              100
 #define   OD_Handle_Delay               200
 #define   ADC_Handle_Delay              20000
 #define   DTU_Signal_Delay              30000
@@ -98,19 +100,24 @@ typedef StaticEventGroup_t osStaticEventGroupDef_t;
 #define EVENTBIT_4	(1<<4)
 
 #define EVENTBIT_5	(1<<5)				//暂未使用
-#define EVENTBIT_6	(1<<6)        
-#define EVENTBIT_7	(1<<7)				
+#define EVENTBIT_6	(1<<6)        //暂未使用
+#define EVENTBIT_7	(1<<7)				//暂未使用
 
 
 #define EVENTBIT_8	(1<<8)				// GPS数据采集时间
-#define EVENTBIT_9	(1<<9)				
-#define EVENTBIT_10 (1<<10)       
+#define EVENTBIT_9	(1<<9)				//暂未使用
+#define EVENTBIT_10 (1<<10)       //暂未使用
 
 
 #define MT_EVENTBIT_1	(1<<0)			
 #define MT_EVENTBIT_2	(1<<1)			
 #define MT_EVENTBIT_3	(1<<2)		  
 #define MT_EVENTBIT_4	(1<<3)
+
+#define SD_EVENTBIT_1	(1<<0)			//sd卡悬架位移事件
+#define SD_EVENTBIT_2	(1<<1)			//sd九轴数据事件
+#define SD_EVENTBIT_3	(1<<2)		  //sd轮速数据事件
+#define SD_EVENTBIT_4	(1<<3)			//gps速度事件
 
 #define CAN_EVENTBIT_1	(1<<0)			
 #define CAN_EVENTBIT_2	(1<<1)			
@@ -125,7 +132,7 @@ typedef StaticEventGroup_t osStaticEventGroupDef_t;
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
+void printf_sdcard_info(void);
 
 /* USER CODE END PM */
 
@@ -234,6 +241,12 @@ uint8_t UpdateTime_flag = 0;
 nmea_msg gpsx; 											//GPS信息
 const uint8_t *fixmode_tbl[4]={"Fail","Fail"," 2D "," 3D "};	//fix mode字符串 
 
+//SD
+extern FATFS SDFatFS;    /* File system object for SD logical drive */
+extern FIL SDFile;       /* File object for SD */
+extern SD_HandleTypeDef hsd;
+HAL_SD_CardInfoTypeDef  SDCardInfo;    
+
 /* USER CODE END Variables */
 /* Definitions for Wit_dat_Task */
 osThreadId_t Wit_dat_TaskHandle;
@@ -324,6 +337,13 @@ const osThreadAttr_t TyreSpeedTask_attributes = {
   .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityLow7,
 };
+/* Definitions for SD_Init_task */
+osThreadId_t SD_Init_taskHandle;
+const osThreadAttr_t SD_Init_task_attributes = {
+  .name = "SD_Init_task",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
 /* Definitions for UsartQueue */
 osMessageQueueId_t UsartQueueHandle;
 const osMessageQueueAttr_t UsartQueue_attributes = {
@@ -377,6 +397,14 @@ const osEventFlagsAttr_t MT_Event_attributes = {
   .cb_mem = &MT_EventControlBlock,
   .cb_size = sizeof(MT_EventControlBlock),
 };
+/* Definitions for SD_Event */
+osEventFlagsId_t SD_EventHandle;
+osStaticEventGroupDef_t SD_EventControlBlock;
+const osEventFlagsAttr_t SD_Event_attributes = {
+  .name = "SD_Event",
+  .cb_mem = &SD_EventControlBlock,
+  .cb_size = sizeof(SD_EventControlBlock),
+};
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -395,6 +423,7 @@ void IWDG_Handle(void *argument);
 void Oadc_Handle(void *argument);
 void Cantx_Handle(void *argument);
 void TyreSpeed_Handle(void *argument);
+void SD_Init_Handle(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -475,6 +504,9 @@ void MX_FREERTOS_Init(void) {
   /* creation of TyreSpeedTask */
   TyreSpeedTaskHandle = osThreadNew(TyreSpeed_Handle, NULL, &TyreSpeedTask_attributes);
 
+  /* creation of SD_Init_task */
+  SD_Init_taskHandle = osThreadNew(SD_Init_Handle, NULL, &SD_Init_task_attributes);
+
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
 	
@@ -529,7 +561,10 @@ void MX_FREERTOS_Init(void) {
 		printf("TyreSpeedTaskHandle任务创建成功!\r\n");
 	else
 		printf(" TyreSpeedTaskHandle任务创建失败!\r\n");	
-	
+	if(NULL != SD_Init_taskHandle)/* 创建成功 */
+		printf("SD_Init_taskHandle任务创建成功!\r\n");
+	else
+		printf(" SD_Init_taskHandle任务创建失败!\r\n");	
   /* USER CODE END RTOS_THREADS */
 
   /* Create the event(s) */
@@ -541,6 +576,9 @@ void MX_FREERTOS_Init(void) {
 
   /* creation of MT_Event */
   MT_EventHandle = osEventFlagsNew(&MT_Event_attributes);
+
+  /* creation of SD_Event */
+  SD_EventHandle = osEventFlagsNew(&SD_Event_attributes);
 
   /* USER CODE BEGIN RTOS_EVENTS */
   /* add events, ... */
@@ -559,16 +597,20 @@ void Wit_Dat_Handle(void *argument)
 {
   /* USER CODE BEGIN Wit_Dat_Handle */
   /* Infinite loop */
-	uint8_t i;
+	uint8_t i,m,n;
+	FRESULT res_flash;
+	UINT wit_bw;
 	uint8_t Wit_date[128] = {0};
+	static uint8_t witnum = 0;
+	float Sd_wit_dat[10][9]= {0};
+	char Sd_wit[128] = {0};
   for(;;)
   {
 		if(osEventFlagsWait (Vcu_Event1Handle, EVENTBIT_0,osFlagsWaitAny, osWaitForever)&EVENTBIT_0){
 			CmdProcess();
 			if(s_cDataUpdate)
 			{
-				for(i = 0; i < 3; i++)
-				{
+				for(i = 0; i < 3; i++){
 					wit_dat1.fAcc[i] = sReg[AX+i] / 32768.0f * 16.0f;
 					Accfloat_tx[i].value = wit_dat1.fAcc[i];
 					wit_dat1.fGyro[i] = sReg[GX+i] / 32768.0f * 2000.0f;
@@ -621,7 +663,56 @@ void Wit_Dat_Handle(void *argument)
 			if(dtu_device1.Onenet_Off_flag == 0&&dtu_device1.st_flag == 0){
 				OneNet_Receive(Wit_date,Wit_Device_ID,sizeof(Wit_date));
 			}
-			vTaskDelay(Wit_Dat_Handle_Delay);
+			for(m = 0;m<3;m++){
+				switch(m){
+					case(0):{
+						for(n = 0;n<3;n++){
+							Sd_wit_dat[witnum][n] = wit_dat1.fAcc[n];
+						}
+						break;
+					}
+					case(1):{
+						for(n = 0;n<3;n++){
+							Sd_wit_dat[witnum][n+3] = wit_dat1.fGyro[n];
+						}
+						break;
+					}
+					case(2):{
+						for(n = 0;n<3;n++){
+							Sd_wit_dat[witnum][n+6] = wit_dat1.fAngle[n];
+						}
+						break;
+					}
+					default:{
+						printf("Sd_wit_dat error!!\r\n");
+						break;
+					}
+				}
+		 }
+		 if((witnum++)>=10){
+				witnum = 0;
+				if(osEventFlagsGet (SD_EventHandle)&SD_EVENTBIT_2){
+					res_flash = f_open(&SDFile, "0:/FWT_dat/witdat.txt",FA_OPEN_APPEND | FA_WRITE);
+					if ( res_flash == FR_OK ){
+						printf("open FWT_dat/witdat.txt success!!\r\n");
+						memset(Sd_wit, 0, sizeof(Sd_wit));
+						sprintf(Sd_wit,"\r\n%04d/%02d/%02d %02d:%02d:%02d",gpsx.utc.year,gpsx.utc.month,gpsx.utc.date,gpsx.utc.hour,gpsx.utc.min,gpsx.utc.sec);
+						f_write(&SDFile,Sd_wit,sizeof(Sd_wit),&wit_bw);
+						for(uint8_t k = 0;k<10;k++){
+							memset(Sd_wit, 0, sizeof(Sd_wit));
+							sprintf(Sd_wit,"\r\nacc:%.3f  %.3f %.3f g/r/ngyro:%.3f %.3f %.3f\r\nangle:%.3f %.3f %.3f"\
+									    ,Sd_wit_dat[k][0],Sd_wit_dat[k][1],Sd_wit_dat[k][2]\
+											,Sd_wit_dat[k][3],Sd_wit_dat[k][4],Sd_wit_dat[k][5]\
+											,Sd_wit_dat[k][6],Sd_wit_dat[k][7],Sd_wit_dat[k][8]);
+							f_write(&SDFile,Sd_wit,sizeof(Sd_wit),&wit_bw);
+						}
+					}else{
+						printf("open FWT_dat/witdat.txt fail (%d)!!",res_flash);
+					}
+					f_close(&SDFile);
+				}
+		 }
+		 vTaskDelay(Wit_Dat_Handle_Delay);
 		}
   }
   /* USER CODE END Wit_Dat_Handle */
@@ -727,6 +818,11 @@ void OilDisplayment_Handle(void *argument)
   /* Infinite loop */
 	uint32_t oildisplay_value,xjwy_1,xjwy_2,xjwy_3,xjwy_4,oil_yy;
 	uint8_t oildisplay[128] = {0};
+	uint8_t sdxjwydat[10][7] = {0};
+	char sd_xjwy[128] = {0};
+	static uint8_t sdxjwynum = 0;
+	UINT xjwy_bw;
+	FRESULT res_flash;
   for(;;)
   {
 		if(ADC1_Flag == 1)
@@ -755,16 +851,38 @@ void OilDisplayment_Handle(void *argument)
 //			printf("Wy_dat.xjwy3_dat:%d mv\r\n",Wy_dat.xjwy3_dat);
 //			printf("Wy_dat.xjwy4_dat:%d mv\r\n",Wy_dat.xjwy4_dat);
 //			printf("displacement_dat:%d\r\n",Wy_dat.displacement_dat);
-			xjwy_msg[0] = Wy_dat.displacement_dat;
-			xjwy_msg[1] = Wy_dat.xjwy1_dat;
-			xjwy_msg[2] = Wy_dat.xjwy2_dat;
-			xjwy_msg[3] = Wy_dat.xjwy3_dat;
-			xjwy_msg[4] = Wy_dat.xjwy4_dat;
-			xjwy_msg[5] = Wy_dat.oilyy_dat[0];
-			xjwy_msg[6] = Wy_dat.oilyy_dat[1];
+			sdxjwydat[sdxjwynum][0] = xjwy_msg[0] = Wy_dat.displacement_dat;
+			sdxjwydat[sdxjwynum][1] = xjwy_msg[1] = Wy_dat.xjwy1_dat;
+			sdxjwydat[sdxjwynum][2] = xjwy_msg[2] = Wy_dat.xjwy2_dat;
+			sdxjwydat[sdxjwynum][3] = xjwy_msg[3] = Wy_dat.xjwy3_dat;
+			sdxjwydat[sdxjwynum][4] = xjwy_msg[4] = Wy_dat.xjwy4_dat;
+			sdxjwydat[sdxjwynum][5] = xjwy_msg[5] = Wy_dat.oilyy_dat[0];
+			sdxjwydat[sdxjwynum][6] = xjwy_msg[6] = Wy_dat.oilyy_dat[1];
 			osEventFlagsSet(Can_EventHandle, CAN_EVENTBIT_6);
 			if(dtu_device1.Onenet_Off_flag == 0&&dtu_device1.st_flag == 0){
 				OneNet_Receive(oildisplay,XJ_Device_ID,sizeof(oildisplay));
+			}
+			if((sdxjwynum++)>=10){
+				sdxjwynum = 0;
+				if(osEventFlagsGet (SD_EventHandle)&SD_EVENTBIT_1){
+					res_flash = f_open(&SDFile, "0:/FWT_dat/xjwydat.txt",FA_OPEN_APPEND | FA_WRITE);
+					if ( res_flash == FR_OK ){
+						printf("open FWT_dat/xjwydat.txt success!!\r\n");
+						memset(sd_xjwy, 0, sizeof(sd_xjwy));
+						sprintf(sd_xjwy,"\r\n%04d/%02d/%02d %02d:%02d:%02d",gpsx.utc.year,gpsx.utc.month,gpsx.utc.date,gpsx.utc.hour,gpsx.utc.min,gpsx.utc.sec);
+						f_write(&SDFile,sd_xjwy,sizeof(sd_xjwy),&xjwy_bw);
+						for(uint8_t i = 0;i<10;i++){
+							memset(sd_xjwy, 0, sizeof(sd_xjwy));
+							sprintf(sd_xjwy,"\r\nxj1 = %d mm ,xj2 = %d mm ,xj3 = %d mm ,xj4 = %d mm ,zd = %2.3lf mpa, ym = %d mm",sdxjwydat[i][1],\
+							sdxjwydat[i][2],sdxjwydat[i][3],sdxjwydat[i][4],(sdxjwydat[i][5]*100+sdxjwydat[i][6])*1.0/1000\
+							,sdxjwydat[i][0]);
+							f_write(&SDFile,sd_xjwy,sizeof(sd_xjwy),&xjwy_bw);						
+						}
+					}else{
+						printf("open FWT_dat/xjwydat.txt fail (%d)!!",res_flash);
+					}
+					f_close(&SDFile);
+				}
 			}
 			HAL_ADC_Start_DMA(&hadc1,adc1_value,sizeof(adc1_value)/4);
 		}
@@ -875,11 +993,12 @@ void GPS_Init_Handle(void *argument)
 	uint8_t key=0xff;
   for(;;)
   {
-		if(Ublox_Cfg_Rate(800,1)!=0)               //设置定位信息更新速度为1000ms,顺便判断GPS模块是否在位.
-	  {	
+		if(Ublox_Cfg_Rate(400,1)!=0)               //设置定位信息更新速度为400ms,顺便判断GPS模块是否在位.
+	  {
 			printf("WT-GPS_BD Setting...\r\n");
-			while((Ublox_Cfg_Rate(800,1)!=0)&&key){	//持续判断,直到可以检查到WT-GPS_BD,且数据保存成功
-				Ublox_Cfg_Tp(900000,100000,1);	//设置PPS为1秒钟输出1次,脉冲宽度为100ms
+			while((Ublox_Cfg_Rate(400,1)!=0)&&key){	//持续判断,直到可以检查到WT-GPS_BD,且数据保存成功
+				Ublox_Cfg_Tp(500000,100000,1);	//设置PPS为1秒钟输出1次,脉冲宽度为100ms
+				Ublox_Cfg_Prt(115200);
 				key=Ublox_Cfg_Cfg_Save();		//保存配置
 			}
 			printf("WT-GPS_BD Set Done!!\r\n");
@@ -1047,7 +1166,6 @@ void Cantx_Handle(void *argument)
 		}
 		if(osEventFlagsGet (Can_EventHandle)&CAN_EVENTBIT_4){
 			osEventFlagsClear (Can_EventHandle, CAN_EVENTBIT_4);
-
 			TxMessage.StdId=GPS_StdId;
 			TxMessage.DLC=sizeof(speedfloat_tx.data);
 			while(HAL_CAN_GetTxMailboxesFreeLevel(&hcan1) < 1);
@@ -1114,6 +1232,11 @@ void TyreSpeed_Handle(void *argument)
   /* USER CODE BEGIN TyreSpeed_Handle */
   /* Infinite loop */
 	uint8_t tyrespeed[64] = {0};
+	uint16_t sdtyrespeed[4][11] = {0};
+	static uint8_t sdnum[4] = {0};
+	char sd_tyre[64] = {0};
+	UINT tyre1_bw,tyre2_bw,tyre3_bw,tyre4_bw;
+	FRESULT res_flash;
   for(;;)
   {
 		/* 左前轮 */
@@ -1129,6 +1252,29 @@ void TyreSpeed_Handle(void *argument)
 				else{
 					mtspeed1.Endup_Flag = 0;
 					mtspeed1.Rotate_Speed = (5000.0*60*mtspeed1.Total_Time_M1)/(F_TOOTH_NUM*mtspeed1.Total_Time_M2);    //计算转速(r/min)
+					sdtyrespeed[0][sdnum[0]++] = mtspeed1.Rotate_Speed;
+					if(sdnum[0]>=10){
+						sdnum[0] = 0;
+						if(osEventFlagsGet (SD_EventHandle)&SD_EVENTBIT_3){
+							res_flash = f_open(&SDFile, "0:/FWT_dat/tyrespeed/tyrespeed1.txt",FA_OPEN_APPEND | FA_WRITE);
+							if ( res_flash == FR_OK ){
+								printf("FWT_dat/tyrespeed/tyrespeed1.txt open success!");
+								memset(sd_tyre, 0, sizeof(sd_tyre));
+								sprintf(sd_tyre,"\r\n%04d/%02d/%02d %02d:%02d:%02d",gpsx.utc.year,gpsx.utc.month,gpsx.utc.date,gpsx.utc.hour,gpsx.utc.min,gpsx.utc.sec);
+								f_write(&SDFile,sd_tyre,sizeof(sd_tyre),&tyre1_bw);
+								memset(sd_tyre, 0, sizeof(sd_tyre));
+								sprintf(sd_tyre,"\r\ntyre1 = %d r/min , %d r/min , %d r/min , %d r/min , %d r/min",sdtyrespeed[0][0],sdtyrespeed[0][1],sdtyrespeed[0][2],sdtyrespeed[0][3],sdtyrespeed[0][4]);
+								f_write(&SDFile,sd_tyre,sizeof(sd_tyre),&tyre1_bw);
+								memset(sd_tyre, 0, sizeof(sd_tyre));
+								sprintf(sd_tyre,"\r\ntyre1 = %d r/min , %d r/min , %d r/min , %d r/min , %d r/min",sdtyrespeed[0][5],sdtyrespeed[0][6],sdtyrespeed[0][7],sdtyrespeed[0][8],sdtyrespeed[0][9]);
+								f_write(&SDFile,sd_tyre,sizeof(sd_tyre),&tyre1_bw);
+							}
+							else{
+								printf("FWT_dat/tyrespeed/tyrespeed1.txt open fail!(%d)",res_flash);
+							}
+							f_close(&SDFile);
+						}
+					}
 //          printf(" SPEED1 = %d,M1 = %d,M2 =  %d\r\n ",mtspeed1.Rotate_Speed,mtspeed1.Total_Time_M1,mtspeed1.Total_Time_M2);    					
 					mtspeed1.Total_Time_M1 = 0;
 					mtspeed1.Total_Time_M2 = 0;
@@ -1151,6 +1297,30 @@ void TyreSpeed_Handle(void *argument)
 					mtspeed2.Endup_Flag = 0;
 					mtspeed2.Rotate_Speed = (5000.0*60*mtspeed2.Total_Time_M1)/(Q_TOOTH_NUM*mtspeed2.Total_Time_M2);    //计算转速(r/min)
 //					printf(" SPEED2 = %d,M1 = %d,M2 =  %d\r\n ",mtspeed2.Rotate_Speed,mtspeed2.Total_Time_M1,mtspeed2.Total_Time_M2);
+					sdtyrespeed[1][sdnum[1]++] = mtspeed2.Rotate_Speed;
+					if(sdnum[1]>=10){
+						sdnum[1] = 0;
+						if(osEventFlagsGet (SD_EventHandle)&SD_EVENTBIT_3){
+							res_flash = f_open(&SDFile, "0:/FWT_dat/tyrespeed/tyrespeed2.txt",FA_OPEN_APPEND | FA_WRITE);
+							if ( res_flash == FR_OK ){
+								printf("FWT_dat/tyrespeed/tyrespeed2.txt open success!");
+								memset(sd_tyre, 0, sizeof(sd_tyre));
+								sprintf(sd_tyre,"\r\n%04d/%02d/%02d %02d:%02d:%02d",gpsx.utc.year,gpsx.utc.month,gpsx.utc.date,gpsx.utc.hour,gpsx.utc.min,gpsx.utc.sec);
+								f_write(&SDFile,sd_tyre,sizeof(sd_tyre),&tyre2_bw);
+								memset(sd_tyre, 0, sizeof(sd_tyre));
+								sprintf(sd_tyre,"\r\ntyre2 = %d r/min , %d r/min , %d r/min , %d r/min , %d r/min",sdtyrespeed[1][0],sdtyrespeed[1][1],sdtyrespeed[1][2],sdtyrespeed[1][3],sdtyrespeed[1][4]);
+								f_write(&SDFile,sd_tyre,sizeof(sd_tyre),&tyre2_bw);
+								memset(sd_tyre, 0, sizeof(sd_tyre));
+								sprintf(sd_tyre,"\r\ntyre2 = %d r/min , %d r/min , %d r/min , %d r/min , %d r/min",sdtyrespeed[1][5],sdtyrespeed[1][6],sdtyrespeed[1][7],sdtyrespeed[1][8],sdtyrespeed[1][9]);
+								f_write(&SDFile,sd_tyre,sizeof(sd_tyre),&tyre2_bw);
+							}
+							else
+							{
+								printf("FWT_dat/tyrespeed/tyrespeed2.txt open fail!(%d)",res_flash);
+							}
+							f_close(&SDFile);
+						}
+					}
 					mtspeed2.Total_Time_M1 = 0;
 					mtspeed2.Total_Time_M2 = 0;
 				}
@@ -1171,6 +1341,30 @@ void TyreSpeed_Handle(void *argument)
 				else{
 					mtspeed3.Endup_Flag = 0;
 					mtspeed3.Rotate_Speed = (5000.0*60*mtspeed3.Total_Time_M1)/(F_TOOTH_NUM*mtspeed3.Total_Time_M2);    //计算转速(r/min)
+					sdtyrespeed[2][sdnum[2]++] = mtspeed3.Rotate_Speed;
+					if(sdnum[2]>=10){
+						sdnum[2] = 0;
+						if(osEventFlagsGet (SD_EventHandle)&SD_EVENTBIT_3){
+							res_flash = f_open(&SDFile, "0:/FWT_dat/tyrespeed/tyrespeed3.txt",FA_OPEN_APPEND | FA_WRITE);
+							if ( res_flash == FR_OK ){
+								printf("FWT_dat/tyrespeed/tyrespeed3.txt open success!");
+								memset(sd_tyre, 0, sizeof(sd_tyre));
+								sprintf(sd_tyre,"\r\n%04d/%02d/%02d %02d:%02d:%02d",gpsx.utc.year,gpsx.utc.month,gpsx.utc.date,gpsx.utc.hour,gpsx.utc.min,gpsx.utc.sec);
+								f_write(&SDFile,sd_tyre,sizeof(sd_tyre),&tyre3_bw);
+								memset(sd_tyre, 0, sizeof(sd_tyre));
+								sprintf(sd_tyre,"\r\ntyre3 = %d r/min , %d r/min , %d r/min , %d r/min , %d r/min",sdtyrespeed[2][0],sdtyrespeed[2][1],sdtyrespeed[2][2],sdtyrespeed[2][3],sdtyrespeed[2][4]);
+								f_write(&SDFile,sd_tyre,sizeof(sd_tyre),&tyre3_bw);
+								memset(sd_tyre, 0, sizeof(sd_tyre));
+								sprintf(sd_tyre,"\r\ntyre3 = %d r/min , %d r/min , %d r/min , %d r/min , %d r/min",sdtyrespeed[2][5],sdtyrespeed[2][6],sdtyrespeed[2][7],sdtyrespeed[2][8],sdtyrespeed[2][9]);
+								f_write(&SDFile,sd_tyre,sizeof(sd_tyre),&tyre3_bw);
+							}
+							else
+							{
+								printf("FWT_dat/tyrespeed/tyrespeed3.txt open fail!(%d)",res_flash);
+							}
+							f_close(&SDFile);
+						}
+					}
 //					printf(" SPEED3 = %d,M1 = %d,M2 =  %d\r\n ",mtspeed3.Rotate_Speed,mtspeed3.Total_Time_M1,mtspeed3.Total_Time_M2);
 					mtspeed3.Total_Time_M1 = 0;
 					mtspeed3.Total_Time_M2 = 0;
@@ -1192,6 +1386,30 @@ void TyreSpeed_Handle(void *argument)
 				else{
 					mtspeed4.Endup_Flag = 0;
 					mtspeed4.Rotate_Speed = (5000.0*60*mtspeed4.Total_Time_M1)/(Q_TOOTH_NUM*mtspeed4.Total_Time_M2);    //计算转速(r/min)
+					sdtyrespeed[3][sdnum[3]++] = mtspeed4.Rotate_Speed;
+					if(sdnum[3]>=10){
+						sdnum[3] = 0;
+						if(osEventFlagsGet (SD_EventHandle)&SD_EVENTBIT_3){
+							res_flash = f_open(&SDFile, "0:/FWT_dat/tyrespeed/tyrespeed4.txt",FA_OPEN_APPEND | FA_WRITE);
+							if ( res_flash == FR_OK ){
+								printf("FWT_dat/tyrespeed/tyrespeed4.txt open success!");
+								memset(sd_tyre, 0, sizeof(sd_tyre));
+								sprintf(sd_tyre,"\r\n%04d/%02d/%02d %02d:%02d:%02d",gpsx.utc.year,gpsx.utc.month,gpsx.utc.date,gpsx.utc.hour,gpsx.utc.min,gpsx.utc.sec);
+								f_write(&SDFile,sd_tyre,sizeof(sd_tyre),&tyre4_bw);
+								memset(sd_tyre, 0, sizeof(sd_tyre));
+								sprintf(sd_tyre,"\r\ntyre4 = %d r/min , %d r/min , %d r/min , %d r/min , %d r/min",sdtyrespeed[3][0],sdtyrespeed[3][1],sdtyrespeed[3][2],sdtyrespeed[3][3],sdtyrespeed[3][4]);
+								f_write(&SDFile,sd_tyre,sizeof(sd_tyre),&tyre4_bw);
+								memset(sd_tyre, 0, sizeof(sd_tyre));
+								sprintf(sd_tyre,"\r\ntyre4 = %d r/min , %d r/min , %d r/min , %d r/min , %d r/min",sdtyrespeed[3][5],sdtyrespeed[3][6],sdtyrespeed[3][7],sdtyrespeed[3][8],sdtyrespeed[3][9]);
+								f_write(&SDFile,sd_tyre,sizeof(sd_tyre),&tyre4_bw);
+							}
+							else
+							{
+								printf("FWT_dat/tyrespeed/tyrespeed4.txt open fail!(%d)",res_flash);
+							}
+							f_close(&SDFile);
+						}
+					}
 //					printf(" SPEED4 = %d,M1 = %d,M2 =  %d\r\n ",mtspeed4.Rotate_Speed,mtspeed4.Total_Time_M1,mtspeed4.Total_Time_M2);
 					mtspeed4.Total_Time_M1 = 0;
 					mtspeed4.Total_Time_M2 = 0;
@@ -1216,6 +1434,38 @@ void TyreSpeed_Handle(void *argument)
 		osDelay(Type_Dat_Handle_Delay);
 	}
   /* USER CODE END TyreSpeed_Handle */
+}
+
+/* USER CODE BEGIN Header_SD_Init_Handle */
+/**
+* @brief Function implementing the SD_Init_task thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_SD_Init_Handle */
+void SD_Init_Handle(void *argument)
+{
+  /* USER CODE BEGIN SD_Init_Handle */
+  /* Infinite loop */
+  for(;;)
+  {
+		FRESULT res_flash;
+		//挂载文件系统
+		res_flash = f_mount(&SDFatFS,"0:",1);
+		if(res_flash!=FR_OK)
+		{
+			printf("！！mount error！！(%d)\r\n",res_flash);
+			osEventFlagsClear (SD_EventHandle,SD_EVENTBIT_1|SD_EVENTBIT_2|SD_EVENTBIT_3|SD_EVENTBIT_4);
+		}
+		else
+		{
+			printf("mount sucess！！\r\n");
+			printf_sdcard_info();
+			osEventFlagsSet (SD_EventHandle,SD_EVENTBIT_1|SD_EVENTBIT_2|SD_EVENTBIT_3|SD_EVENTBIT_4);
+		}
+    vTaskDelete(SD_Init_taskHandle);
+  }
+  /* USER CODE END SD_Init_Handle */
 }
 
 /* Private application code --------------------------------------------------*/
@@ -1367,6 +1617,11 @@ static void Gps_Msg_Show(void)
 {
 // 	float tp;
 	uint8_t Speed_date[64] = {0};
+	static uint8_t Sd_gps_num = 0;
+	char sd_gpsspeed[128] = {0};
+	float sd_gpsspeeddat[10] = {0};
+	FRESULT res_flash;
+	UINT gps_bw;
 //	tp=gpsx.longitude;	
 ////	printf("Longitude:%.5f %1c\r\n",tp/=100000,gpsx.ewhemi);//得到经度字符串 	   
 //	tp=gpsx.latitude;	
@@ -1375,6 +1630,7 @@ static void Gps_Msg_Show(void)
 ////	printf("Altitude:%.1fm \r\n",tp/=10);//得到高度字符串
 	speedfloat_tx.value = gpsx.speed/1000;
 	printf("Speed:%.3fkm/h \r\n",speedfloat_tx.value);//得到速度字符串
+	sd_gpsspeeddat[Sd_gps_num] = speedfloat_tx.value;
 //	if(gpsx.fixmode<=3)														//定位状态
 //	{  
 //		printf("Fix Mode:%s\r\n",fixmode_tbl[gpsx.fixmode]);  
@@ -1382,8 +1638,8 @@ static void Gps_Msg_Show(void)
 //	printf("Valid satellite:%02d\r\n",gpsx.posslnum);//用于定位的卫星数
 //	printf("Visible satellite:%02d\r\n",gpsx.svnum%100);//可见卫星数		
 //	printf("UTC Date:%04d/%02d/%02d   \r\n",gpsx.utc.year,gpsx.utc.month,gpsx.utc.date); //显示UTC日期
-	printf("UTC Time:%02d:%02d:%02d   \r\n",gpsx.utc.hour,gpsx.utc.min,gpsx.utc.sec);//显示UTC时间
-	if(UpdateTime_flag != 1&&gpsx.utc.year > 2023){
+//	printf("UTC Time:%02d:%02d:%02d   \r\n",gpsx.utc.hour,gpsx.utc.min,gpsx.utc.sec);//显示UTC时间
+	if(UpdateTime_flag != 1&&gpsx.utc.year > 2022){
 		if(gpsx.utc.hour > 0&&gpsx.utc.min > 0&&gpsx.utc.sec > 0){
 			Clkvalue[0] = gpsx.utc.year - 2000;
 			Clkvalue[1] = gpsx.utc.month;
@@ -1402,6 +1658,32 @@ static void Gps_Msg_Show(void)
 	if(dtu_device1.Onenet_Off_flag == 0&&dtu_device1.st_flag == 0){
 		OneNet_Receive(Speed_date,GPS_Device_ID,sizeof(Speed_date));
 	}
+	if(Sd_gps_num++>=10){
+		Sd_gps_num = 0;
+		if(osEventFlagsGet (SD_EventHandle)&SD_EVENTBIT_4){
+			res_flash = f_open(&SDFile, "0:/FWT_dat/gpsspeed.txt",FA_OPEN_APPEND | FA_WRITE);
+			if ( res_flash == FR_OK ){
+				printf("FWT_dat/tyrespeed/tyrespeed4.txt open success!");
+				memset(sd_gpsspeed, 0, sizeof(sd_gpsspeed));
+				sprintf(sd_gpsspeed,"\r\n%04d/%02d/%02d %02d:%02d:%02d",gpsx.utc.year,gpsx.utc.month,gpsx.utc.date,gpsx.utc.hour,gpsx.utc.min,gpsx.utc.sec);
+				f_write(&SDFile,sd_gpsspeed,sizeof(sd_gpsspeed),&gps_bw);
+				memset(sd_gpsspeed, 0, sizeof(sd_gpsspeed));
+//				sprintf(sd_gpsspeed,"\r\ngps_speed = %.3f km/h , %.3f km/h , %.3f km/h , %.3f km/h , %.3f km/h\r\nngps_speed = %.3f km/h , %.3f km/h , %.3f km/h , %.3f km/h , %.3f km/h",\
+//				sd_gpsspeeddat[0],sd_gpsspeeddat[1],sd_gpsspeeddat[2],sd_gpsspeeddat[3]sd_gpsspeeddat[4],sd_gpsspeeddat[5],sd_gpsspeeddat[6],\
+//				sd_gpsspeeddat[7],sd_gpsspeeddat[8],sd_gpsspeeddat[9]);
+				sprintf(sd_gpsspeed,"\r\ngps_speed = %.3f km/h , %.3f km/h , %.3f km/h , %.3f km/h , %.3f km/h\r\nngps_speed = %.3f km/h , %.3f km/h , %.3f km/h , %.3f km/h , %.3f km/h"\
+							,sd_gpsspeeddat[0],sd_gpsspeeddat[1],sd_gpsspeeddat[2],sd_gpsspeeddat[3],sd_gpsspeeddat[4],sd_gpsspeeddat[5],sd_gpsspeeddat[6],sd_gpsspeeddat[7],sd_gpsspeeddat[8]\
+							,sd_gpsspeeddat[9]);
+				f_write(&SDFile,sd_gpsspeed,sizeof(sd_gpsspeed),&gps_bw);
+			}
+			else
+			{
+				printf("FWT_dat/tyrespeed/tyrespeed4.txt open fail!(%d)",res_flash);
+			}
+			f_close(&SDFile);
+		}
+	}
+	
 }
 
 
@@ -1511,6 +1793,46 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 			}
 		}	
 	}
+}
+
+
+/*
+	函数名：printf_sdcard_info()
+	功  能：读取SD卡基本信息
+  参  数：无
+  返回值：无
+*/
+
+void printf_sdcard_info(void)
+{
+	uint64_t CardCap;      	//SD卡容量
+	HAL_SD_CardCIDTypeDef SDCard_CID; 
+
+	HAL_SD_GetCardCID(&hsd,&SDCard_CID);	//获取CID
+	HAL_SD_GetCardInfo(&hsd,&SDCardInfo);                    //获取SD卡信息
+	CardCap=(uint64_t)(SDCardInfo.LogBlockNbr)*(uint64_t)(SDCardInfo.LogBlockSize);	//计算SD卡容量
+	switch(SDCardInfo.CardType)
+	{
+		case CARD_SDSC:
+		{
+			if(SDCardInfo.CardVersion == CARD_V1_X)
+				printf("Card Type:SDSC V1\r\n");
+			else if(SDCardInfo.CardVersion == CARD_V2_X)
+				printf("Card Type:SDSC V2\r\n");
+		}
+		break;
+		case CARD_SDHC_SDXC:printf("Card Type:SDHC\r\n");break;
+		default:break;
+	}	
+  printf("Card ManufacturerID: %d \r\n",SDCard_CID.ManufacturerID);				//制造商ID	
+ 	printf("CardVersion:         %d \r\n",(uint32_t)(SDCardInfo.CardVersion));		//卡版本号
+	printf("Class:               %d \r\n",(uint32_t)(SDCardInfo.Class));		    //
+ 	printf("Card RCA(RelCardAdd):%d \r\n",SDCardInfo.RelCardAdd);					//卡相对地址
+	printf("Card BlockNbr:       %d \r\n",SDCardInfo.BlockNbr);						//块数量
+ 	printf("Card BlockSize:      %d \r\n",SDCardInfo.BlockSize);					//块大小
+	printf("LogBlockNbr:         %d \r\n",(uint32_t)(SDCardInfo.LogBlockNbr));		//逻辑块数量
+	printf("LogBlockSize:        %d \r\n",(uint32_t)(SDCardInfo.LogBlockSize));		//逻辑块大小
+	printf("Card Capacity:       %d MB\r\n",(uint32_t)(CardCap>>20));				//卡容量
 }
 
 /* USER CODE END Application */
