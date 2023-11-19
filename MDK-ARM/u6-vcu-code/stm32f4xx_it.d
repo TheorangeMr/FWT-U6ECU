@@ -55,3 +55,12 @@ u6-vcu-code\stm32f4xx_it.o: ../Bsp/RingBuffer/RingBuffer.h
 u6-vcu-code\stm32f4xx_it.o: D:\software\keil 5 install\ARM\ARMCC\Bin\..\include\stdbool.h
 u6-vcu-code\stm32f4xx_it.o: ../Bsp/MALLOC/malloc.h
 u6-vcu-code\stm32f4xx_it.o: D:\software\keil 5 install\ARM\ARMCC\Bin\..\include\string.h
+u6-vcu-code\stm32f4xx_it.o: ../Bsp/GPS/gps.h
+u6-vcu-code\stm32f4xx_it.o: ../Inc/fatfs.h
+u6-vcu-code\stm32f4xx_it.o: ../Middlewares/Third_Party/FatFs/src/ff.h
+u6-vcu-code\stm32f4xx_it.o: ../Middlewares/Third_Party/FatFs/src/integer.h
+u6-vcu-code\stm32f4xx_it.o: ../Inc/ffconf.h
+u6-vcu-code\stm32f4xx_it.o: ../Inc/bsp_driver_sd.h
+u6-vcu-code\stm32f4xx_it.o: ../Middlewares/Third_Party/FatFs/src/ff_gen_drv.h
+u6-vcu-code\stm32f4xx_it.o: ../Middlewares/Third_Party/FatFs/src/diskio.h
+u6-vcu-code\stm32f4xx_it.o: ../Inc/sd_diskio.h
