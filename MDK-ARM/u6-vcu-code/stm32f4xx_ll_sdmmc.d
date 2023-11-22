@@ -32,6 +32,8 @@ u6-vcu-code\stm32f4xx_ll_sdmmc.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_
 u6-vcu-code\stm32f4xx_ll_sdmmc.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_iwdg.h
 u6-vcu-code\stm32f4xx_ll_sdmmc.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr.h
 u6-vcu-code\stm32f4xx_ll_sdmmc.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr_ex.h
+u6-vcu-code\stm32f4xx_ll_sdmmc.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rtc.h
+u6-vcu-code\stm32f4xx_ll_sdmmc.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_rtc_ex.h
 u6-vcu-code\stm32f4xx_ll_sdmmc.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_sd.h
 u6-vcu-code\stm32f4xx_ll_sdmmc.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_ll_sdmmc.h
 u6-vcu-code\stm32f4xx_ll_sdmmc.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_tim.h

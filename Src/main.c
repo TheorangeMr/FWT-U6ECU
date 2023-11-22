@@ -24,6 +24,7 @@
 #include "dma.h"
 #include "fatfs.h"
 #include "iwdg.h"
+#include "rtc.h"
 #include "sdio.h"
 #include "tim.h"
 #include "usart.h"
@@ -41,7 +42,16 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+/*******************************************
+	*文件名 ：  U6_VCU
+	*作   者：  罗成
+	*修改时间： 2023.8.9
+	*版   本：  v4.5.2
+	*声   明：  本程序归飞翼车队所有，未经车队队长及指导老师允许，不能对外传播
+	*提   示：  本程序采用Git进行版本管理，可通过git退回以前版本，但在选择时请选择
+							最高版本（随版本递增，功能逐步递增）
+							github仓库：https://github.com/TheorangeMr/U6xxxx.git
+*******************************************/
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -58,13 +68,16 @@
 
 /* USER CODE BEGIN PV */
 
+extern uint8_t Oil_base_dat;
 extern mt_rotate mtspeed1;
 extern mt_rotate mtspeed2;
 extern mt_rotate mtspeed3;
 extern mt_rotate mtspeed4;
+extern mt_rotate mtspeed5;
 extern __IO uint16_t USART3_RX_STA;
 
 uint8_t cantx_dat[8] = {0};
+uint8_t time3_over1 = 0,time3_over2 = 0;
 
 /* USER CODE END PV */
 
@@ -77,36 +90,6 @@ void MX_FREERTOS_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
-
-//void creat_file(char * filename)
-//{
-//    int retSD = f_open(&fil, filename, FA_CREATE_ALWAYS | FA_WRITE); //打开文件，权限包括创建、写（如果没有该文件，会创建该文件）
-//    if(retSD==FR_OK) printf("\r\ncreater file sucess!!! \r\n");
-//    else printf("\r\ncreater file error : %d\r\n",retSD);
-//   // f_close(&fil); //关闭该文件
-//    //HAL_Delay(100);
-//}
-//void write_file(char * data,uint32_t len)
-//{
-//    uint32_t byteswritten;
-//    /*##-3- Write data to the text files ###############################*/
-//    int retSD = f_write(&fil, data, len, (void *)&byteswritten);
-//    if(retSD)
-//        printf(" write file error : %d\r\n",retSD);
-//    else
-//    {
-//        printf(" write file sucess!!! \r\n");
-//        printf(" write Data[%d] : %s\r\n",byteswritten,data);
-//    }
-//    /*##-4- Close the open text files ################################*/
-//    retSD = f_close(&fil);
-//    if(retSD)
-//        printf(" close error : %d\r\n",retSD);
-//    else
-//        printf(" close sucess!!! \r\n");
-//}
-
 
 /*
 	函数名：Wit_Can_Send_Msg()
@@ -179,6 +162,8 @@ int main(void)
   MX_TIM3_Init();
   MX_TIM5_Init();
   MX_TIM7_Init();
+  MX_TIM13_Init();
+  MX_RTC_Init();
   /* USER CODE BEGIN 2 */
 	
 	//nine-axis dvice initialize
@@ -274,15 +259,17 @@ void SystemClock_Config(void)
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
+	#define mt_cycle   300                     //mt算法采样周期
+	#define reset_cycle   800                  //当不采样时的清零周期
 
+	static uint8_t tim14_count = 0;
   /* USER CODE END Callback 0 */
   if (htim->Instance == TIM1) {
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
-	#define mt_cycle   300                     //mt算法采样周期
-	#define reset_cycle   800                  //当不采样时的清零周期
-  else if (htim->Instance == TIM14) {
+
+  if (htim->Instance == TIM14) {
 		if(mtspeed1.timecountflag){
 			mtspeed1.timecount++;
 			if(mtspeed1.timecount >= mt_cycle){
@@ -335,15 +322,42 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 				mtspeed4.Rotate_Speed = 0;
 			}
 		}
+		if(mtspeed5.timecountflag){
+			mtspeed5.timecount++;
+			if(mtspeed5.timecount >= mt_cycle){
+				mtspeed5.timecountflag = 0;
+				mtspeed5.timecount = 0;
+				mtspeed5.Endup_Flag = 1;                                           //规定周期采样结束标志			
+			}    
+		}else{
+			mtspeed5.speed_zero++;
+			if(mtspeed5.speed_zero >= reset_cycle){
+				mtspeed5.Rotate_Speed = 0;
+			}
+		}
 	}
-	else if(htim->Instance == TIM3){
-		printf("timer3 timeout!!!/r/n");
+	if(htim->Instance == TIM3){
+//		printf("timer3 timeout!!!\r\n");
+		//time3计数器计数溢出，本次测速丢弃
+		time3_over1 = 1;
+		time3_over2 = 1;
 	}
-	else if(htim->Instance == TIM7){
+	if(htim->Instance == TIM7){
 //		printf("timer7 timeout!!!\r\n");
 		USART3_RX_STA|=1<<15;	//标记接收完成
 		__HAL_TIM_DISABLE(&htim7);
 	}
+	if (htim->Instance == TIM13){
+		tim14_count++;
+		if(tim14_count >= 10)
+		{
+			if(Oil_base_dat > 0)
+			{
+				Oil_base_dat--;
+			}
+      tim14_count = 0;
+		}
+  }
   /* USER CODE END Callback 1 */
 }
 

@@ -50,10 +50,11 @@ typedef StaticEventGroup_t osStaticEventGroupDef_t;
 
 #define Q_TOOTH_NUM 24			 //齿数
 #define F_TOOTH_NUM 48			 //齿数
+#define J_TOOTH_NUM 50			 //减速器齿数
 #define WHEEL_RADIUS 0.257 //轮径(单位:m)
 #define PI 3.14						 //圆周率
 #define TANK_HEIGHT 210		 //油箱高度
-#define GEAR_RATIO  4.05    //传动比
+#define GEAR_RATIO  3.45    //传动比
 
 #define XJWY_StdId							0x01
 #define GPS_StdId								0x02
@@ -83,7 +84,7 @@ typedef StaticEventGroup_t osStaticEventGroupDef_t;
 #define   OD_Handle_Delay               200
 #define   ADC_Handle_Delay              20000
 #define   DTU_Signal_Delay              30000
-
+#define   RTC_Delay                     900
 
 /*
 *************************************************************************
@@ -113,6 +114,7 @@ typedef StaticEventGroup_t osStaticEventGroupDef_t;
 #define MT_EVENTBIT_2	(1<<1)			
 #define MT_EVENTBIT_3	(1<<2)		  
 #define MT_EVENTBIT_4	(1<<3)
+#define MT_EVENTBIT_5	(1<<4)
 
 #define SD_EVENTBIT_1	(1<<0)			//sd卡悬架位移事件
 #define SD_EVENTBIT_2	(1<<1)			//sd九轴数据事件
@@ -132,7 +134,6 @@ typedef StaticEventGroup_t osStaticEventGroupDef_t;
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-void printf_sdcard_info(void);
 
 /* USER CODE END PM */
 
@@ -155,6 +156,7 @@ extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim3;
 extern TIM_HandleTypeDef htim5;
 extern TIM_HandleTypeDef htim7;
+extern TIM_HandleTypeDef htim13;
 extern TIM_HandleTypeDef htim14;
 
 
@@ -208,11 +210,15 @@ RingBuffer *p_uart2_rxbuf;
 _dtu_4g_device dtu_device1 = {0,0,0,{0},1,0};
 
 //Tyre_speed
+
+
+extern uint8_t time3_over1,time3_over2;
+
 mt_rotate mtspeed1 = {0,0,0,0,0,0,0,0,0,0};
 mt_rotate mtspeed2 = {0,0,0,0,0,0,0,0,0,0};
 mt_rotate mtspeed3 = {0,0,0,0,0,0,0,0,0,0};
 mt_rotate mtspeed4 = {0,0,0,0,0,0,0,0,0,0};
-
+mt_rotate mtspeed5 = {0,0,0,0,0,0,0,0,0,0};
 
 //位移传感器结构体
 
@@ -246,6 +252,14 @@ extern FATFS SDFatFS;    /* File system object for SD logical drive */
 extern FIL SDFile;       /* File object for SD */
 extern SD_HandleTypeDef hsd;
 HAL_SD_CardInfoTypeDef  SDCardInfo;    
+
+//oil	
+extern uint32_t adc2_value[20];
+__IO uint8_t Oil_base_dat = 97;                     //油量最终基准值
+
+
+//RTC
+extern RTC_HandleTypeDef hrtc;
 
 /* USER CODE END Variables */
 /* Definitions for Wit_dat_Task */
@@ -287,7 +301,7 @@ const osThreadAttr_t DTU_Init_Task_attributes = {
 osThreadId_t Signal_4G_TaskHandle;
 const osThreadAttr_t Signal_4G_Task_attributes = {
   .name = "Signal_4G_Task",
-  .stack_size = 128 * 4,
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
 /* Definitions for GPS_Init_Task */
@@ -301,7 +315,7 @@ const osThreadAttr_t GPS_Init_Task_attributes = {
 osThreadId_t GPS_Get_TaskHandle;
 const osThreadAttr_t GPS_Get_Task_attributes = {
   .name = "GPS_Get_Task",
-  .stack_size = 128 * 4,
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityLow3,
 };
 /* Definitions for IWDG_Task */
@@ -315,7 +329,7 @@ const osThreadAttr_t IWDG_Task_attributes = {
 osThreadId_t Otheradc_taskHandle;
 const osThreadAttr_t Otheradc_task_attributes = {
   .name = "Otheradc_task",
-  .stack_size = 128 * 4,
+  .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
 /* Definitions for CantxTask */
@@ -343,6 +357,18 @@ const osThreadAttr_t SD_Init_task_attributes = {
   .name = "SD_Init_task",
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for RTCTask */
+osThreadId_t RTCTaskHandle;
+uint32_t RTCTaskBuffer[ 128 ];
+osStaticThreadDef_t RTCTaskControlBlock;
+const osThreadAttr_t RTCTask_attributes = {
+  .name = "RTCTask",
+  .cb_mem = &RTCTaskControlBlock,
+  .cb_size = sizeof(RTCTaskControlBlock),
+  .stack_mem = &RTCTaskBuffer[0],
+  .stack_size = sizeof(RTCTaskBuffer),
+  .priority = (osPriority_t) osPriorityLow,
 };
 /* Definitions for UsartQueue */
 osMessageQueueId_t UsartQueueHandle;
@@ -424,6 +450,7 @@ void Oadc_Handle(void *argument);
 void Cantx_Handle(void *argument);
 void TyreSpeed_Handle(void *argument);
 void SD_Init_Handle(void *argument);
+void RTC_Handle(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -506,6 +533,9 @@ void MX_FREERTOS_Init(void) {
 
   /* creation of SD_Init_task */
   SD_Init_taskHandle = osThreadNew(SD_Init_Handle, NULL, &SD_Init_task_attributes);
+
+  /* creation of RTCTask */
+  RTCTaskHandle = osThreadNew(RTC_Handle, NULL, &RTCTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -661,7 +691,7 @@ void Wit_Dat_Handle(void *argument)
 			}
 			osEventFlagsSet(Can_EventHandle, CAN_EVENTBIT_1);
 			if(dtu_device1.Onenet_Off_flag == 0&&dtu_device1.st_flag == 0){
-				OneNet_Receive(Wit_date,Wit_Device_ID,sizeof(Wit_date));
+				OneNet_Send(Wit_date,Wit_Device_ID,sizeof(Wit_date));
 			}
 			for(m = 0;m<3;m++){
 				switch(m){
@@ -694,13 +724,13 @@ void Wit_Dat_Handle(void *argument)
 				if(osEventFlagsGet (SD_EventHandle)&SD_EVENTBIT_2){
 					res_flash = f_open(&SDFile, "0:/FWT_dat/witdat.txt",FA_OPEN_APPEND | FA_WRITE);
 					if ( res_flash == FR_OK ){
-						printf("open FWT_dat/witdat.txt success!!\r\n");
+//						printf("open FWT_dat/witdat.txt success!!\r\n");
 						memset(Sd_wit, 0, sizeof(Sd_wit));
 						sprintf(Sd_wit,"\r\n%04d/%02d/%02d %02d:%02d:%02d",gpsx.utc.year,gpsx.utc.month,gpsx.utc.date,gpsx.utc.hour,gpsx.utc.min,gpsx.utc.sec);
 						f_write(&SDFile,Sd_wit,sizeof(Sd_wit),&wit_bw);
 						for(uint8_t k = 0;k<10;k++){
 							memset(Sd_wit, 0, sizeof(Sd_wit));
-							sprintf(Sd_wit,"\r\nacc:%.3f  %.3f %.3f g/r/ngyro:%.3f %.3f %.3f\r\nangle:%.3f %.3f %.3f"\
+							sprintf(Sd_wit,"\r\nacc:%.3f  %.3f %.3f g\r\ngyro:%.3f %.3f %.3f\r\nangle:%.3f %.3f %.3f"\
 									    ,Sd_wit_dat[k][0],Sd_wit_dat[k][1],Sd_wit_dat[k][2]\
 											,Sd_wit_dat[k][3],Sd_wit_dat[k][4],Sd_wit_dat[k][5]\
 											,Sd_wit_dat[k][6],Sd_wit_dat[k][7],Sd_wit_dat[k][8]);
@@ -831,12 +861,12 @@ void OilDisplayment_Handle(void *argument)
       oildisplay_value = 0;
 			xjwy_1 = 0; xjwy_2 = 0; xjwy_3 = 0; xjwy_4 = 0; oil_yy = 0;
 			for(uint8_t i=0;i<60;){
-			  xjwy_1+=adc1_value[i++];
-			  xjwy_2+=adc1_value[i++];
-				xjwy_3+=adc1_value[i++];
-			  xjwy_4+=adc1_value[i++];
-  			oil_yy+=adc1_value[i++];
-				oildisplay_value += adc1_value[i++];
+			  xjwy_1+=adc1_value[i++];                       //左前
+			  xjwy_2+=adc1_value[i++];                       //右前
+				xjwy_3+=adc1_value[i++];                       //左后
+			  xjwy_4+=adc1_value[i++];                       //右后
+  			oil_yy+=adc1_value[i++];                       //油压
+				oildisplay_value += adc1_value[i++];           //油门线位
 			}
 			Wy_dat.displacement_dat = oildisplay_value*5/4096;    //oildisplay_value/10*50/4096
 			Wy_dat.xjwy1_dat = xjwy_1*22.5/4096;
@@ -851,23 +881,23 @@ void OilDisplayment_Handle(void *argument)
 //			printf("Wy_dat.xjwy3_dat:%d mv\r\n",Wy_dat.xjwy3_dat);
 //			printf("Wy_dat.xjwy4_dat:%d mv\r\n",Wy_dat.xjwy4_dat);
 //			printf("displacement_dat:%d\r\n",Wy_dat.displacement_dat);
-			sdxjwydat[sdxjwynum][0] = xjwy_msg[0] = Wy_dat.displacement_dat;
-			sdxjwydat[sdxjwynum][1] = xjwy_msg[1] = Wy_dat.xjwy1_dat;
-			sdxjwydat[sdxjwynum][2] = xjwy_msg[2] = Wy_dat.xjwy2_dat;
-			sdxjwydat[sdxjwynum][3] = xjwy_msg[3] = Wy_dat.xjwy3_dat;
-			sdxjwydat[sdxjwynum][4] = xjwy_msg[4] = Wy_dat.xjwy4_dat;
+			sdxjwydat[sdxjwynum][0] = xjwy_msg[0] = Wy_dat.xjwy1_dat;
+			sdxjwydat[sdxjwynum][1] = xjwy_msg[1] = Wy_dat.xjwy2_dat;
+			sdxjwydat[sdxjwynum][2] = xjwy_msg[2] = Wy_dat.xjwy3_dat;
+			sdxjwydat[sdxjwynum][3] = xjwy_msg[3] = Wy_dat.xjwy4_dat;
+			sdxjwydat[sdxjwynum][4] = xjwy_msg[4] = Wy_dat.displacement_dat;
 			sdxjwydat[sdxjwynum][5] = xjwy_msg[5] = Wy_dat.oilyy_dat[0];
 			sdxjwydat[sdxjwynum][6] = xjwy_msg[6] = Wy_dat.oilyy_dat[1];
 			osEventFlagsSet(Can_EventHandle, CAN_EVENTBIT_6);
 			if(dtu_device1.Onenet_Off_flag == 0&&dtu_device1.st_flag == 0){
-				OneNet_Receive(oildisplay,XJ_Device_ID,sizeof(oildisplay));
+				OneNet_Send(oildisplay,XJ_Device_ID,sizeof(oildisplay));
 			}
 			if((sdxjwynum++)>=10){
 				sdxjwynum = 0;
 				if(osEventFlagsGet (SD_EventHandle)&SD_EVENTBIT_1){
 					res_flash = f_open(&SDFile, "0:/FWT_dat/xjwydat.txt",FA_OPEN_APPEND | FA_WRITE);
 					if ( res_flash == FR_OK ){
-						printf("open FWT_dat/xjwydat.txt success!!\r\n");
+//						printf("open FWT_dat/xjwydat.txt success!!\r\n");
 						memset(sd_xjwy, 0, sizeof(sd_xjwy));
 						sprintf(sd_xjwy,"\r\n%04d/%02d/%02d %02d:%02d:%02d",gpsx.utc.year,gpsx.utc.month,gpsx.utc.date,gpsx.utc.hour,gpsx.utc.min,gpsx.utc.sec);
 						f_write(&SDFile,sd_xjwy,sizeof(sd_xjwy),&xjwy_bw);
@@ -1066,17 +1096,140 @@ void Oadc_Handle(void *argument)
   /* USER CODE BEGIN Oadc_Handle */
   /* Infinite loop */
   uint32_t battery_capacity = 0,oil_capacity = 0;
-	extern uint32_t adc2_value[20];
+	uint32_t count_som = 0;
+	uint8_t Oil_count[110]= {0};
+	uint16_t Oil_dat = 0;                         //ADC油量采集原始数据
+	uint16_t High[8] = {0};                       //油量高度数组
+	uint8_t Oil = 0;							 							  //油量
+	static uint8_t memory_oil = 0;
+	static uint8_t High_Count = 0;
+	static uint16_t Oil_i = 0,df = 0;
+	static uint8_t first_flag = 1;
+	static uint8_t af = 0,bf = 0,cf = 0;
   for(;;)
   {
 		if(ADC2_Flag == 1)
 		{
 			ADC2_Flag = 0;
+			oil_capacity = 0;battery_capacity = 0;
 			for(uint8_t i=0;i<20;){
-				battery_capacity += adc2_value[i++];
 				oil_capacity += adc2_value[i++];
+				battery_capacity += adc2_value[i++];
 		  }
-			battery_capacity = battery_capacity*330/4096;
+			printf("battery_capacity = %d\r\noil_capacity = %d\r\n",battery_capacity*330/4096,oil_capacity*330/4096);
+			if(first_flag == 1)             //采样首次油量数据
+			{
+				oil_first:
+				/* 获取各通道ADC采集值 */
+				Oil_dat = oil_capacity/10;
+				/* 油量高度与检测电压的关系 High(mm) = Volt(mv) / 5 */
+				if(Oil_dat > 100 && Oil_dat < 1400)//&& Oil_dat
+				{
+					printf("adc = %d\r\n",Oil_dat); 
+					High[High_Count] = (Oil_dat * 3300*2.1) / 4095 / 5;
+					High_Count++;
+					if(High_Count >= 100)
+					{
+						for(uint8_t i = 0; i < High_Count-1; i++){
+							for(uint8_t j = i+1; j < High_Count; j++){
+								if(High[j] < High[i]){
+									uint16_t temp = High[i];
+									High[i] = High[j];
+									High[j] = temp;
+								}
+							}
+						}
+//						printf("High[High_Count / 2] = %d\r\n",High[High_Count / 2]);
+						Oil = (High[High_Count / 2] * 100) / TANK_HEIGHT;           //去中位数
+//						printf("Oil = %d",Oil);
+						High_Count = 0;
+//						printf("Oil = %d",Oil);
+						if(Oil <= 99 && Oil >=30){
+							Oil_base_dat = Oil;
+							first_flag = 0;
+							memory_oil = Oil_base_dat;
+							__HAL_TIM_ENABLE(&htim13);                                     // 使能计数器	
+						}
+						else if(Oil < 30){
+							if(af <= 20){
+								af++;
+								goto oil_first;
+							}
+							af = 0;
+							Oil_base_dat = 0;
+							first_flag = 2;
+						}
+						else if(Oil > 99){
+							Oil_base_dat = 99;
+							first_flag = 0;
+							memory_oil = Oil_base_dat;
+							__HAL_TIM_ENABLE(&htim13);                                     // 使能计数器	
+						}										
+					}
+				}
+				else if(af > 20){
+					first_flag = 2;
+					Oil_base_dat = 0;
+					af = 0;
+				}
+				else{
+					af++;
+				}
+			}
+			else if(first_flag == 0)                                             //定时器校验油量数据
+			{
+					/* 获取各通道ADC采集值 */
+				Oil_dat = oil_capacity/10;
+				/* 油量高度与检测电压的关系 High(mm) = Volt(mv) / 5 */
+				if(Oil_dat > 350)    /* 没测到液体时小于50mv，所以去350 */
+				{
+					High[High_Count] = (Oil_dat * 3300*2.1) / 4095 / 5;
+					High_Count++;
+					if(High_Count >= 5)
+					{
+						for(uint8_t i = 0; i < High_Count-1; i++){
+							for(int8_t j = i+1; j < High_Count; j++){
+								if(High[j] < High[i]){
+									int16_t temp = High[i];
+									High[i] = High[j];
+									High[j] = temp;
+								}
+							}
+						}
+						Oil = (High[High_Count / 2] * 100) / TANK_HEIGHT;
+						High_Count = 0;
+					}
+				}
+				if(Oil < memory_oil+10&&Oil > memory_oil-10)
+				{
+					Oil_count[Oil_i++] = Oil;
+				}
+				if(Oil_i >= 50)
+				{
+					count_som = 0;
+					for(uint8_t i = 0; i < 50; i++){
+						count_som += Oil_count[i];
+					}
+					if(count_som/50 >= memory_oil){bf++;}
+					else if(count_som/50 < memory_oil){df += count_som/50,cf++;}
+					if(bf >= 5)                                      //测量值大于Oil_base_dat
+					{
+						 __HAL_TIM_DISABLE(&htim13);																									// 失能计数器
+						 bf = 0;cf = 0;
+					}
+					else if(cf >= 5)
+					{
+						memory_oil = df/5;
+						__HAL_TIM_SET_COUNTER(&htim13,0);
+						__HAL_TIM_ENABLE(&htim13);																									// 使能计数器
+						cf = 0;bf = 0;
+					}
+					Oil_i = 0;
+				}
+//				printf("volt : %d",(Oil_dat * 3300) / 4095);
+//				printf(" oil：%d\r\n ",Oil);
+			}	
+			battery_capacity = battery_capacity*330/4096;                    //电池电量采样
 			if(battery_capacity >3235){
 				oadc_msg[0] = 6;
 			}
@@ -1098,14 +1251,20 @@ void Oadc_Handle(void *argument)
 			else if(battery_capacity < 2810){
 				oadc_msg[0] = 0;
 			}
-			oadc_msg[1] = 0;
+//			printf("battery_capacity = %d\r\n",oadc_msg[0]);
+			oadc_msg[1] = Oil_base_dat;
 			osEventFlagsSet(Can_EventHandle, CAN_EVENTBIT_7);
-			//			if((osEventFlagsGet (Vcu_Event1Handle)&EVENTBIT_6) == EVENTBIT_6&&dtu_device1.Onenet_Off_flag == 0&&){
-//			OneNet_Receive(oildisplay,XJ1_Device_ID,sizeof(oildisplay));
+//			if((osEventFlagsGet (Vcu_Event1Handle)&EVENTBIT_6) == EVENTBIT_6&&dtu_device1.Onenet_Off_flag == 0&&){
+//			OneNet_Send(oildisplay,XJ1_Device_ID,sizeof(oildisplay));
 //			}
 			HAL_ADC_Start_DMA(&hadc2,adc2_value,sizeof(adc2_value)/4);
 		}
-    osDelay(ADC_Handle_Delay);
+		if(first_flag == 1){
+			osDelay(10);
+		}
+		else{
+			osDelay(ADC_Handle_Delay);
+		}
   }
   /* USER CODE END Oadc_Handle */
 }
@@ -1130,6 +1289,7 @@ void Cantx_Handle(void *argument)
   for(;;)
   {
 		#define candelay 5
+		//九轴数据
 		if(osEventFlagsGet (Can_EventHandle)&CAN_EVENTBIT_1){
 			osEventFlagsClear (Can_EventHandle, CAN_EVENTBIT_1);
 			TxMessage.StdId=Wit_StdId_xy;
@@ -1154,6 +1314,7 @@ void Cantx_Handle(void *argument)
 			}
 			osDelay(candelay);
 		}
+		//轮速速度数据
 		if(osEventFlagsGet (Can_EventHandle)&CAN_EVENTBIT_2){
 			osEventFlagsClear (Can_EventHandle, CAN_EVENTBIT_2);
 			TxMessage.StdId=Tyre_StdId;
@@ -1164,6 +1325,7 @@ void Cantx_Handle(void *argument)
 			}
 			osDelay(candelay);	
 		}
+		//gps速度数据
 		if(osEventFlagsGet (Can_EventHandle)&CAN_EVENTBIT_4){
 			osEventFlagsClear (Can_EventHandle, CAN_EVENTBIT_4);
 			TxMessage.StdId=GPS_StdId;
@@ -1174,6 +1336,7 @@ void Cantx_Handle(void *argument)
 			}
 			osDelay(candelay);			
 		}
+		//GPS实时时间数据
 		if(osEventFlagsGet (Can_EventHandle)&CAN_EVENTBIT_5){
 			osEventFlagsClear (Can_EventHandle, CAN_EVENTBIT_5);
 			TxMessage.StdId=CLK_StdId;
@@ -1184,6 +1347,7 @@ void Cantx_Handle(void *argument)
 			}
 			osDelay(candelay);
 		}
+		//悬架位移数据
 		if(osEventFlagsGet (Can_EventHandle)&CAN_EVENTBIT_6){
 			osEventFlagsClear (Can_EventHandle, CAN_EVENTBIT_6);
 			TxMessage.StdId=XJWY_StdId;
@@ -1194,6 +1358,7 @@ void Cantx_Handle(void *argument)
 			}		
 			osDelay(candelay);			
 		}
+		//电池电量，油量
 		if(osEventFlagsGet (Can_EventHandle)&CAN_EVENTBIT_7){
 			osEventFlagsClear (Can_EventHandle, CAN_EVENTBIT_7);
 			TxMessage.StdId=OADC_StdId;
@@ -1204,6 +1369,7 @@ void Cantx_Handle(void *argument)
 			}
 			osDelay(candelay);			
 		}
+		//4G信号
 		if(osEventFlagsGet (Can_EventHandle)&CAN_EVENTBIT_8){
 			osEventFlagsClear (Can_EventHandle, CAN_EVENTBIT_8);
 			TxMessage.StdId=DTU_StdId;
@@ -1232,10 +1398,10 @@ void TyreSpeed_Handle(void *argument)
   /* USER CODE BEGIN TyreSpeed_Handle */
   /* Infinite loop */
 	uint8_t tyrespeed[64] = {0};
-	uint16_t sdtyrespeed[4][11] = {0};
-	static uint8_t sdnum[4] = {0};
+	uint16_t sdtyrespeed[5][11] = {0};
+	static uint8_t sdnum[5] = {0};
 	char sd_tyre[64] = {0};
-	UINT tyre1_bw,tyre2_bw,tyre3_bw,tyre4_bw;
+	UINT tyre1_bw,tyre2_bw,tyre3_bw,tyre4_bw,moderator_bw;
 	FRESULT res_flash;
   for(;;)
   {
@@ -1251,14 +1417,14 @@ void TyreSpeed_Handle(void *argument)
 				}
 				else{
 					mtspeed1.Endup_Flag = 0;
-					mtspeed1.Rotate_Speed = (5000.0*60*mtspeed1.Total_Time_M1)/(F_TOOTH_NUM*mtspeed1.Total_Time_M2);    //计算转速(r/min)
+					mtspeed1.Rotate_Speed = (5000.0*60*mtspeed1.Total_Time_M1)/(F_TOOTH_NUM*mtspeed1.Total_Time_M2);    //计算转速(r/min)   M/T算法公式
 					sdtyrespeed[0][sdnum[0]++] = mtspeed1.Rotate_Speed;
 					if(sdnum[0]>=10){
 						sdnum[0] = 0;
 						if(osEventFlagsGet (SD_EventHandle)&SD_EVENTBIT_3){
 							res_flash = f_open(&SDFile, "0:/FWT_dat/tyrespeed/tyrespeed1.txt",FA_OPEN_APPEND | FA_WRITE);
 							if ( res_flash == FR_OK ){
-								printf("FWT_dat/tyrespeed/tyrespeed1.txt open success!");
+//								printf("FWT_dat/tyrespeed/tyrespeed1.txt open success!");
 								memset(sd_tyre, 0, sizeof(sd_tyre));
 								sprintf(sd_tyre,"\r\n%04d/%02d/%02d %02d:%02d:%02d",gpsx.utc.year,gpsx.utc.month,gpsx.utc.date,gpsx.utc.hour,gpsx.utc.min,gpsx.utc.sec);
 								f_write(&SDFile,sd_tyre,sizeof(sd_tyre),&tyre1_bw);
@@ -1295,15 +1461,15 @@ void TyreSpeed_Handle(void *argument)
 				}
 				else{
 					mtspeed2.Endup_Flag = 0;
-					mtspeed2.Rotate_Speed = (5000.0*60*mtspeed2.Total_Time_M1)/(Q_TOOTH_NUM*mtspeed2.Total_Time_M2);    //计算转速(r/min)
-//					printf(" SPEED2 = %d,M1 = %d,M2 =  %d\r\n ",mtspeed2.Rotate_Speed,mtspeed2.Total_Time_M1,mtspeed2.Total_Time_M2);
+					mtspeed2.Rotate_Speed = (5000.0*60*mtspeed2.Total_Time_M1)/(Q_TOOTH_NUM*mtspeed2.Total_Time_M2);    //计算转速(r/min)  M/T算法公式
+//  				printf(" SPEED2 = %d,M1 = %d,M2 =  %d\r\n ",mtspeed2.Rotate_Speed,mtspeed2.Total_Time_M1,mtspeed2.Total_Time_M2);
 					sdtyrespeed[1][sdnum[1]++] = mtspeed2.Rotate_Speed;
 					if(sdnum[1]>=10){
 						sdnum[1] = 0;
 						if(osEventFlagsGet (SD_EventHandle)&SD_EVENTBIT_3){
 							res_flash = f_open(&SDFile, "0:/FWT_dat/tyrespeed/tyrespeed2.txt",FA_OPEN_APPEND | FA_WRITE);
 							if ( res_flash == FR_OK ){
-								printf("FWT_dat/tyrespeed/tyrespeed2.txt open success!");
+//								printf("FWT_dat/tyrespeed/tyrespeed2.txt open success!");
 								memset(sd_tyre, 0, sizeof(sd_tyre));
 								sprintf(sd_tyre,"\r\n%04d/%02d/%02d %02d:%02d:%02d",gpsx.utc.year,gpsx.utc.month,gpsx.utc.date,gpsx.utc.hour,gpsx.utc.min,gpsx.utc.sec);
 								f_write(&SDFile,sd_tyre,sizeof(sd_tyre),&tyre2_bw);
@@ -1340,14 +1506,14 @@ void TyreSpeed_Handle(void *argument)
 				}
 				else{
 					mtspeed3.Endup_Flag = 0;
-					mtspeed3.Rotate_Speed = (5000.0*60*mtspeed3.Total_Time_M1)/(F_TOOTH_NUM*mtspeed3.Total_Time_M2);    //计算转速(r/min)
+					mtspeed3.Rotate_Speed = (5000.0*60*mtspeed3.Total_Time_M1)/(F_TOOTH_NUM*mtspeed3.Total_Time_M2);    //计算转速(r/min)    
 					sdtyrespeed[2][sdnum[2]++] = mtspeed3.Rotate_Speed;
 					if(sdnum[2]>=10){
 						sdnum[2] = 0;
 						if(osEventFlagsGet (SD_EventHandle)&SD_EVENTBIT_3){
 							res_flash = f_open(&SDFile, "0:/FWT_dat/tyrespeed/tyrespeed3.txt",FA_OPEN_APPEND | FA_WRITE);
 							if ( res_flash == FR_OK ){
-								printf("FWT_dat/tyrespeed/tyrespeed3.txt open success!");
+//								printf("FWT_dat/tyrespeed/tyrespeed3.txt open success!");
 								memset(sd_tyre, 0, sizeof(sd_tyre));
 								sprintf(sd_tyre,"\r\n%04d/%02d/%02d %02d:%02d:%02d",gpsx.utc.year,gpsx.utc.month,gpsx.utc.date,gpsx.utc.hour,gpsx.utc.min,gpsx.utc.sec);
 								f_write(&SDFile,sd_tyre,sizeof(sd_tyre),&tyre3_bw);
@@ -1371,6 +1537,7 @@ void TyreSpeed_Handle(void *argument)
 				}
 				mtspeed3.startcount = 0;
 				HAL_TIM_IC_Start_IT(&htim5,TIM_CHANNEL_1);
+//				printf("TIM_CHANNEL_2\r\n");
 			}
 		}
 		/* 左后轮 */
@@ -1385,14 +1552,20 @@ void TyreSpeed_Handle(void *argument)
 				}
 				else{
 					mtspeed4.Endup_Flag = 0;
+					if(time3_over1 == 0){
 					mtspeed4.Rotate_Speed = (5000.0*60*mtspeed4.Total_Time_M1)/(Q_TOOTH_NUM*mtspeed4.Total_Time_M2);    //计算转速(r/min)
+//					printf(" SPEED4 = %d,M1 = %d,M2 =  %d\r\n ",mtspeed4.Rotate_Speed,mtspeed4.Total_Time_M1,mtspeed4.Total_Time_M2);
+					}else{
+						time3_over1 = 0;
+						mtspeed4.memory_value = 0;
+					}
 					sdtyrespeed[3][sdnum[3]++] = mtspeed4.Rotate_Speed;
 					if(sdnum[3]>=10){
 						sdnum[3] = 0;
 						if(osEventFlagsGet (SD_EventHandle)&SD_EVENTBIT_3){
 							res_flash = f_open(&SDFile, "0:/FWT_dat/tyrespeed/tyrespeed4.txt",FA_OPEN_APPEND | FA_WRITE);
 							if ( res_flash == FR_OK ){
-								printf("FWT_dat/tyrespeed/tyrespeed4.txt open success!");
+//								printf("FWT_dat/tyrespeed/tyrespeed4.txt open success!");
 								memset(sd_tyre, 0, sizeof(sd_tyre));
 								sprintf(sd_tyre,"\r\n%04d/%02d/%02d %02d:%02d:%02d",gpsx.utc.year,gpsx.utc.month,gpsx.utc.date,gpsx.utc.hour,gpsx.utc.min,gpsx.utc.sec);
 								f_write(&SDFile,sd_tyre,sizeof(sd_tyre),&tyre4_bw);
@@ -1418,18 +1591,74 @@ void TyreSpeed_Handle(void *argument)
 				HAL_TIM_IC_Start_IT(&htim3,TIM_CHANNEL_2);
 			}
 		}
+		/* 减速器机械测速 */
+		if(osEventFlagsGet (MT_EventHandle)&MT_EVENTBIT_5){
+			osEventFlagsClear (MT_EventHandle, MT_EVENTBIT_5);
+			if (mtspeed5.Endup_Flag != 0)                         //轮速信号捕获完成
+			{
+				if(mtspeed5.Total_Time_M1 == 0){
+					mtspeed5.Rotate_Speed = 0;
+					mtspeed5.Total_Time_M2 = 0;
+					mtspeed5.Endup_Flag = 0;
+				}
+				else{
+					mtspeed5.Endup_Flag = 0;
+					if(time3_over2 == 0){
+						mtspeed5.Rotate_Speed = (((5000.0*60*mtspeed5.Total_Time_M1)/(J_TOOTH_NUM*mtspeed5.Total_Time_M2)) * 2 * PI * WHEEL_RADIUS /GEAR_RATIO)*3.0/50;    //计算速度(km/h)	
+						printf(" SPEED5 = %d,M1 = %d,M2 =  %d\r\n",mtspeed5.Rotate_Speed,mtspeed5.Total_Time_M1,mtspeed5.Total_Time_M2);
+					}
+					else{
+						time3_over2 = 0;
+						mtspeed5.memory_value = 0;
+					}
+					sdtyrespeed[4][sdnum[4]++] = mtspeed5.Rotate_Speed;
+					if(sdnum[4]>=10){
+						sdnum[4] = 0;
+						if(osEventFlagsGet (SD_EventHandle)&SD_EVENTBIT_3){
+							res_flash = f_open(&SDFile, "0:/FWT_dat/tyrespeed/reducerspeed.txt",FA_OPEN_APPEND | FA_WRITE);
+							if ( res_flash == FR_OK ){
+//								printf("FWT_dat/tyrespeed/tyrespeed4.txt open success!");
+								memset(sd_tyre, 0, sizeof(sd_tyre));
+								sprintf(sd_tyre,"\r\n%04d/%02d/%02d %02d:%02d:%02d",gpsx.utc.year,gpsx.utc.month,gpsx.utc.date,gpsx.utc.hour,gpsx.utc.min,gpsx.utc.sec);
+								f_write(&SDFile,sd_tyre,sizeof(sd_tyre),&moderator_bw);
+								memset(sd_tyre, 0, sizeof(sd_tyre));
+								sprintf(sd_tyre,"\r\nmoderator = %d km/h , %d km/h , %d km/h , %d km/h , %d km/h",sdtyrespeed[4][0],sdtyrespeed[4][1],sdtyrespeed[4][2],sdtyrespeed[4][3],sdtyrespeed[4][4]);
+								f_write(&SDFile,sd_tyre,sizeof(sd_tyre),&moderator_bw);
+								memset(sd_tyre, 0, sizeof(sd_tyre));
+								sprintf(sd_tyre,"\r\nmoderator = %d km/h , %d km/h , %d km/h , %d km/h , %d km/h",sdtyrespeed[4][5],sdtyrespeed[4][6],sdtyrespeed[4][7],sdtyrespeed[4][8],sdtyrespeed[4][9]);
+								f_write(&SDFile,sd_tyre,sizeof(sd_tyre),&moderator_bw);
+							}
+							else
+							{
+								printf("FWT_dat/tyrespeed/tyrespeed4.txt open fail!(%d)",res_flash);
+							}
+							f_close(&SDFile);
+						}
+					}
+//					printf(" SPEED4 = %d,M1 = %d,M2 =  %d\r\n ",mtspeed4.Rotate_Speed,mtspeed4.Total_Time_M1,mtspeed4.Total_Time_M2);
+					mtspeed5.Total_Time_M1 = 0;
+					mtspeed5.Total_Time_M2 = 0;
+				}
+				mtspeed5.startcount = 0;
+				HAL_TIM_IC_Start_IT(&htim3,TIM_CHANNEL_1);
+			}
+		}
+		//左前
 		tyre_msg[0] = (mtspeed1.Rotate_Speed >> 8);
-		tyre_msg[1] = mtspeed1.Rotate_Speed &0xff;	
-		tyre_msg[2] = (mtspeed2.Rotate_Speed >> 8);
-		tyre_msg[3] = mtspeed2.Rotate_Speed &0xff;
-		tyre_msg[4] = (mtspeed3.Rotate_Speed >> 8);
-		tyre_msg[5] = mtspeed3.Rotate_Speed &0xff;
-		tyre_msg[6] = (mtspeed4.Rotate_Speed >> 8);
-		tyre_msg[7] = mtspeed4.Rotate_Speed &0xff;
+		tyre_msg[1] = mtspeed1.Rotate_Speed &0xff;
+		//左后
+		tyre_msg[2] = (mtspeed3.Rotate_Speed >> 8);
+		tyre_msg[3] = mtspeed3.Rotate_Speed &0xff;
+		//右前
+		tyre_msg[4] = (mtspeed4.Rotate_Speed >> 8);
+		tyre_msg[5] = mtspeed4.Rotate_Speed &0xff;
+		//右后
+		tyre_msg[6] = (mtspeed2.Rotate_Speed >> 8);
+		tyre_msg[7] = mtspeed2.Rotate_Speed &0xff;
 		osEventFlagsSet (Can_EventHandle,CAN_EVENTBIT_2);
 		if(dtu_device1.Onenet_Off_flag == 0&&dtu_device1.st_flag == 0){
 //			printf("EVENTBIT_10\r\n");
-			OneNet_Receive(tyrespeed,TYRE_Device_ID,sizeof(tyrespeed));
+			OneNet_Send(tyrespeed,TYRE_Device_ID,sizeof(tyrespeed));
 		}
 		osDelay(Type_Dat_Handle_Delay);
 	}
@@ -1468,8 +1697,39 @@ void SD_Init_Handle(void *argument)
   /* USER CODE END SD_Init_Handle */
 }
 
+/* USER CODE BEGIN Header_RTC_Handle */
+/**
+* @brief Function implementing the RTCTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_RTC_Handle */
+void RTC_Handle(void *argument)
+{
+  /* USER CODE BEGIN RTC_Handle */
+  /* Infinite loop */
+	RTC_TimeTypeDef rtcTime;
+  RTC_DateTypeDef GetData;   //获取日期结构	
+  for(;;)
+  {
+		HAL_RTC_GetTime(&hrtc,&rtcTime,RTC_FORMAT_BIN);
+		HAL_RTC_GetDate(&hrtc,&GetData,RTC_FORMAT_BIN);
+//		printf("      %02d-%02d-%02d\r\n",rtcTime.Hours,rtcTime.Minutes,rtcTime.Seconds);
+    osDelay(RTC_Delay);
+  }
+  /* USER CODE END RTC_Handle */
+}
+
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
+
+
+/**********************************************************************
+  * @ 函数名  ： HAL_CAN_RxFifo0MsgPendingCallback()
+  * @ 功能说明： CAN数据接受回调函数
+  * @ 参数    ： CAN_HandleTypeDef *hcan
+  * @ 返回值  ： 无
+  ********************************************************************/
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 {
 	uint8_t i = 0;
@@ -1507,8 +1767,13 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
 		osSemaphoreRelease(CanBinarySemHandle);
 	}
 }
-
-static void OneNet_Receive(uint8_t *Send_date,uint8_t device_id,uint8_t dat_len)
+/**********************************************************************
+  * @ 函数名  ： OneNet_Send()
+	* @ 功能说明： 4g_DTU的数据发送函数
+  * @ 参数    ： uint8_t *Send_date,uint8_t device_id,uint8_t dat_len
+  * @ 返回值  ： 无
+  ********************************************************************/
+static void OneNet_Send(uint8_t *Send_date,uint8_t device_id,uint8_t dat_len)
 {
 	uint8_t Sdat[3] = {3,0,0x46};
 	int res = 0;
@@ -1549,7 +1814,7 @@ static void OneNet_Receive(uint8_t *Send_date,uint8_t device_id,uint8_t dat_len)
 /**********************************************************************
   * @ 函数名  ： OneNet_FillBuf
   * @ 功能说明： 封装数据
-  * @ 参数    ： OneNet_FillBuf(uint8_t *buff,uint8_t devicer_id)
+  * @ 参数    ： uint8_t *buff,uint8_t devicer_id
   * @ 返回值  ： 无
   ********************************************************************/
 static void OneNet_FillBuf(uint8_t *buff,uint8_t devicer_id)
@@ -1590,6 +1855,13 @@ static void OneNet_FillBuf(uint8_t *buff,uint8_t devicer_id)
 	osKernelUnlock ();
 }
 
+/**********************************************************************
+  * @ 函数名  ： HAL_UART_RxCpltCallback()
+  * @ 功能说明： 用于处理接受gps模块数据
+  * @ 参数    ： UART_HandleTypeDef *huart
+  * @ 返回值  ： 无
+  ********************************************************************/
+
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
 	if(huart->Instance == USART3){
@@ -1612,13 +1884,18 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	}
 }
 
-//显示GPS定位信息 
+/**********************************************************************
+  * @ 函数名  ： Gps_Msg_Show()
+  * @ 功能说明： 显示GPS定位信息
+  * @ 参数    ： 无
+  * @ 返回值  ： 无
+  ********************************************************************/
 static void Gps_Msg_Show(void)
 {
 // 	float tp;
 	uint8_t Speed_date[64] = {0};
 	static uint8_t Sd_gps_num = 0;
-	char sd_gpsspeed[128] = {0};
+	char sd_gpsspeed[200] = {0};
 	float sd_gpsspeeddat[10] = {0};
 	FRESULT res_flash;
 	UINT gps_bw;
@@ -1628,7 +1905,8 @@ static void Gps_Msg_Show(void)
 ////	printf("Latitude:%.5f %1c \r\n",tp/=100000,gpsx.nshemi);//得到纬度字符串
 //	tp=gpsx.altitude;	   
 ////	printf("Altitude:%.1fm \r\n",tp/=10);//得到高度字符串
-	speedfloat_tx.value = gpsx.speed/1000;
+//	speedfloat_tx.value = gpsx.speed/1000;
+	speedfloat_tx.value = mtspeed5.Rotate_Speed;
 	printf("Speed:%.3fkm/h \r\n",speedfloat_tx.value);//得到速度字符串
 	sd_gpsspeeddat[Sd_gps_num] = speedfloat_tx.value;
 //	if(gpsx.fixmode<=3)														//定位状态
@@ -1656,22 +1934,18 @@ static void Gps_Msg_Show(void)
 	}
  osEventFlagsSet(Can_EventHandle, CAN_EVENTBIT_4);
 	if(dtu_device1.Onenet_Off_flag == 0&&dtu_device1.st_flag == 0){
-		OneNet_Receive(Speed_date,GPS_Device_ID,sizeof(Speed_date));
+		OneNet_Send(Speed_date,GPS_Device_ID,sizeof(Speed_date));
 	}
 	if(Sd_gps_num++>=10){
 		Sd_gps_num = 0;
 		if(osEventFlagsGet (SD_EventHandle)&SD_EVENTBIT_4){
 			res_flash = f_open(&SDFile, "0:/FWT_dat/gpsspeed.txt",FA_OPEN_APPEND | FA_WRITE);
 			if ( res_flash == FR_OK ){
-				printf("FWT_dat/tyrespeed/tyrespeed4.txt open success!");
 				memset(sd_gpsspeed, 0, sizeof(sd_gpsspeed));
 				sprintf(sd_gpsspeed,"\r\n%04d/%02d/%02d %02d:%02d:%02d",gpsx.utc.year,gpsx.utc.month,gpsx.utc.date,gpsx.utc.hour,gpsx.utc.min,gpsx.utc.sec);
 				f_write(&SDFile,sd_gpsspeed,sizeof(sd_gpsspeed),&gps_bw);
 				memset(sd_gpsspeed, 0, sizeof(sd_gpsspeed));
-//				sprintf(sd_gpsspeed,"\r\ngps_speed = %.3f km/h , %.3f km/h , %.3f km/h , %.3f km/h , %.3f km/h\r\nngps_speed = %.3f km/h , %.3f km/h , %.3f km/h , %.3f km/h , %.3f km/h",\
-//				sd_gpsspeeddat[0],sd_gpsspeeddat[1],sd_gpsspeeddat[2],sd_gpsspeeddat[3]sd_gpsspeeddat[4],sd_gpsspeeddat[5],sd_gpsspeeddat[6],\
-//				sd_gpsspeeddat[7],sd_gpsspeeddat[8],sd_gpsspeeddat[9]);
-				sprintf(sd_gpsspeed,"\r\ngps_speed = %.3f km/h , %.3f km/h , %.3f km/h , %.3f km/h , %.3f km/h\r\nngps_speed = %.3f km/h , %.3f km/h , %.3f km/h , %.3f km/h , %.3f km/h"\
+				sprintf(sd_gpsspeed,"\r\ngps_speed = %.3f km/h , %.3f km/h , %.3f km/h , %.3f km/h , %.3f km/h\r\ngps_speed = %.3f km/h , %.3f km/h , %.3f km/h , %.3f km/h , %.3f km/h"\
 							,sd_gpsspeeddat[0],sd_gpsspeeddat[1],sd_gpsspeeddat[2],sd_gpsspeeddat[3],sd_gpsspeeddat[4],sd_gpsspeeddat[5],sd_gpsspeeddat[6],sd_gpsspeeddat[7],sd_gpsspeeddat[8]\
 							,sd_gpsspeeddat[9]);
 				f_write(&SDFile,sd_gpsspeed,sizeof(sd_gpsspeed),&gps_bw);
@@ -1683,14 +1957,17 @@ static void Gps_Msg_Show(void)
 			f_close(&SDFile);
 		}
 	}
-	
 }
 
-
-
+/**********************************************************************
+  * @ 函数名  ： HAL_TIM_IC_CaptureCallback()
+  * @ 功能说明： 定时器输入捕获中断返回处理
+  * @ 参数    ： TIM_HandleTypeDef *htim
+  * @ 返回值  ： 无
+  ********************************************************************/
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 {
-	static uint32_t Pulse_Count1 = 1,Pulse_Count2 = 1,Pulse_Count3 = 1,Pulse_Count4 = 1;
+	static uint32_t Pulse_Count1 = 1,Pulse_Count2 = 1,Pulse_Count3 = 1,Pulse_Count4 = 1,Pulse_Count5 = 1;
 	if(htim->Instance == TIM2)
 	{
 		if(mtspeed1.Startup_Flag == 1){
@@ -1699,6 +1976,7 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 		if(mtspeed2.Startup_Flag == 1){
 			Pulse_Count2++;
 		}
+		//左前
 		if(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_1) == 1)
 		{
 			mtspeed1.speed_zero = 0;
@@ -1720,10 +1998,12 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 				}
 			}
 		}
+		//右后
 		if(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_5) == 1)
 		{
 			mtspeed2.speed_zero = 0;
 			if(mtspeed2.Endup_Flag != 0){                                                       //采样周期结束捕获第二次上升沿
+//				printf("tim2_channel_Capture1\r\n");
 				HAL_TIM_IC_Stop_IT(htim,TIM_CHANNEL_1);																					 //禁止捕获通道1中断
 				mtspeed2.Total_Time_M1 = Pulse_Count2;                                 					 //获取采样周期内的M1
 				mtspeed2.Total_Time_M2 = __HAL_TIM_GetCounter(htim) - 	mtspeed2.memory_value;		 //获取高频时钟周期M2
@@ -1731,6 +2011,7 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 				mtspeed2.Startup_Flag = 0;                                                       //首次标志清零                                                    //实际采样结束标志
 				osEventFlagsSet (MT_EventHandle, MT_EVENTBIT_2);
 			}else{
+//				printf("tim2_channel_Capture2\r\n");
 				if(mtspeed2.startcount == 0){
 					mtspeed2.startcount = 1;
 					mtspeed2.Startup_Flag = 1;							                                //标记首次捕获上升沿
@@ -1745,6 +2026,7 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 		if(mtspeed3.Startup_Flag == 1){
 			Pulse_Count3++;
 		}
+		//右前
 		if(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_0) == 1)
 		{
 			mtspeed3.speed_zero = 0;
@@ -1770,40 +2052,61 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 		if(mtspeed4.Startup_Flag == 1){
 			Pulse_Count4++;
 		}
+		if(mtspeed5.Startup_Flag == 1){
+			Pulse_Count5++;
+		}
+		//左后
 		if(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_7) == 1)
 		{
 			mtspeed4.speed_zero = 0;                                                            
 			if(mtspeed4.Endup_Flag != 0){                                                       //采样周期结束捕获第二次上升沿
-				__HAL_TIM_DISABLE(&htim3);
+//				printf("tim3_channel_Capture1\r\n");
 				HAL_TIM_IC_Stop_IT(&htim3,TIM_CHANNEL_2);																					 //禁止捕获通道1中断
 				mtspeed4.Total_Time_M1 = Pulse_Count4;                                 					 //获取采样周期内的M1
-				mtspeed4.Total_Time_M2 = __HAL_TIM_GetCounter(&htim3);		 											//获取高频时钟周期M2
+				mtspeed4.Total_Time_M2 = __HAL_TIM_GetCounter(&htim3) - mtspeed4.memory_value;		 											//获取高频时钟周期M2
 				Pulse_Count4 = 1;                                                                //脉冲置1
 				mtspeed4.Startup_Flag = 0;                                                       //首次标志清零                                                     //实际采样结束标志
 				osEventFlagsSet (MT_EventHandle, MT_EVENTBIT_4);
 			}else{
+//				printf("tim3_channel_Capture2\r\n");
 				if(mtspeed4.startcount == 0){
-					__HAL_TIM_SET_COUNTER(&htim3,0);
-					__HAL_TIM_ENABLE(&htim3);
 					mtspeed4.startcount = 1;
 					mtspeed4.Startup_Flag = 1;							                                //标记首次捕获上升沿
-				  mtspeed4.memory_value = __HAL_TIM_GetCounter(&htim3);
+					mtspeed4.memory_value = __HAL_TIM_GetCounter(&htim3);
 				  mtspeed4.timecountflag = 1;
 				}				                             					                            //标记首次捕获上升沿
 			}
-		}	
+		}
+		//减速器		
+		if(HAL_GPIO_ReadPin(GPIOA,GPIO_PIN_6) == 1)
+		{
+			mtspeed5.speed_zero = 0;                                                            
+			if(mtspeed5.Endup_Flag != 0){                                                       //采样周期结束捕获第二次上升沿
+				HAL_TIM_IC_Stop_IT(&htim3,TIM_CHANNEL_1);																					//禁止捕获通道1中断
+				mtspeed5.Total_Time_M1 = Pulse_Count5;                                 					  //获取采样周期内的M1
+				mtspeed5.Total_Time_M2 = __HAL_TIM_GetCounter(&htim3) - mtspeed5.memory_value;	  //获取高频时钟周期M2
+				Pulse_Count5 = 1;                                                                 //脉冲置1
+				mtspeed5.Startup_Flag = 0;                                                        //首次标志清零                                                     //实际采样结束标志
+				osEventFlagsSet (MT_EventHandle, MT_EVENTBIT_5);
+			}else{
+				if(mtspeed5.startcount == 0){
+					mtspeed5.startcount = 1;
+					mtspeed5.Startup_Flag = 1;							                                //标记首次捕获上升沿
+					mtspeed5.memory_value = __HAL_TIM_GetCounter(&htim3);
+				  mtspeed5.timecountflag = 1;
+				}				                             					                            //标记首次捕获上升沿
+			}
+		}
 	}
 }
 
-
-/*
-	函数名：printf_sdcard_info()
-	功  能：读取SD卡基本信息
-  参  数：无
-  返回值：无
-*/
-
-void printf_sdcard_info(void)
+/**********************************************************************
+  * @ 函数名  ： printf_sdcard_info()
+  * @ 功能说明： 读取SD卡基本信息
+  * @ 参数    ： 无
+  * @ 返回值  ： 无
+  ********************************************************************/
+inline static void printf_sdcard_info(void)
 {
 	uint64_t CardCap;      	//SD卡容量
 	HAL_SD_CardCIDTypeDef SDCard_CID; 

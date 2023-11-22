@@ -26,8 +26,8 @@
 #include "cmsis_os.h"
 #include "RingBuffer.h"
 #include "string.h"
-
-
+#include "gps.h"
+#include "fatfs.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -55,6 +55,8 @@ extern osSemaphoreId Onenet_tx_BinarySemHandle;
 extern osMessageQueueId_t UsartQueueHandle;
 extern osEventFlagsId_t Vcu_Event1Handle;
 
+extern nmea_msg gpsx; 											//GPS–≈œ¢
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -80,6 +82,7 @@ extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim3;
 extern TIM_HandleTypeDef htim5;
 extern TIM_HandleTypeDef htim7;
+extern TIM_HandleTypeDef htim13;
 extern TIM_HandleTypeDef htim14;
 extern DMA_HandleTypeDef hdma_usart1_tx;
 extern DMA_HandleTypeDef hdma_usart2_rx;
@@ -115,7 +118,22 @@ void NMI_Handler(void)
 void HardFault_Handler(void)
 {
   /* USER CODE BEGIN HardFault_IRQn 0 */
+	FRESULT res_flash;
+	UINT HardFault_bw;
+	char HardFault_date[128] = {0};
   printf("Error_HardFault_Handler\r\n");
+	res_flash = f_open(&SDFile, "0:/FWT_dat/system_running_fault_recorde.txt",FA_OPEN_APPEND | FA_WRITE);
+	if ( res_flash == FR_OK ){
+		//						printf("open FWT_dat/witdat.txt success!!\r\n");
+			memset(HardFault_date, 0, sizeof(HardFault_date));
+			sprintf(HardFault_date,"\r\n%04d/%02d/%02d %02d:%02d:%02d",gpsx.utc.year,gpsx.utc.month,gpsx.utc.date,gpsx.utc.hour,gpsx.utc.min,gpsx.utc.sec);
+			f_write(&SDFile,HardFault_date,sizeof(HardFault_date),&HardFault_bw);
+			memset(HardFault_date, 0, sizeof(HardFault_date));
+			sprintf(HardFault_date,"\r\nError_HardFault_Handler: %d",uwTick);
+			f_write(&SDFile,HardFault_date,sizeof(HardFault_date),&HardFault_bw);
+		}else{
+			printf("open FWT_dat/system_running_fault_recorde.txt fail (%d)!!",res_flash);
+		}
   /* USER CODE END HardFault_IRQn 0 */
   while (1)
   {
@@ -337,6 +355,20 @@ void USART3_IRQHandler(void)
   /* USER CODE BEGIN USART3_IRQn 1 */
 
   /* USER CODE END USART3_IRQn 1 */
+}
+
+/**
+  * @brief This function handles TIM8 update interrupt and TIM13 global interrupt.
+  */
+void TIM8_UP_TIM13_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM8_UP_TIM13_IRQn 0 */
+
+  /* USER CODE END TIM8_UP_TIM13_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim13);
+  /* USER CODE BEGIN TIM8_UP_TIM13_IRQn 1 */
+
+  /* USER CODE END TIM8_UP_TIM13_IRQn 1 */
 }
 
 /**

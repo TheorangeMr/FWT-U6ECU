@@ -159,7 +159,7 @@ void MX_ADC2_Init(void)
 
   /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
   */
-  sConfig.Channel = ADC_CHANNEL_9;
+  sConfig.Channel = ADC_CHANNEL_4;
   sConfig.Rank = 1;
   sConfig.SamplingTime = ADC_SAMPLETIME_480CYCLES;
   if (HAL_ADC_ConfigChannel(&hadc2, &sConfig) != HAL_OK)
@@ -169,7 +169,7 @@ void MX_ADC2_Init(void)
 
   /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
   */
-  sConfig.Channel = ADC_CHANNEL_6;
+  sConfig.Channel = ADC_CHANNEL_9;
   sConfig.Rank = 2;
   if (HAL_ADC_ConfigChannel(&hadc2, &sConfig) != HAL_OK)
   {
@@ -204,7 +204,7 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* adcHandle)
     PB0     ------> ADC1_IN8
     */
     GPIO_InitStruct.Pin = oil_yycj_Pin|xjwy2_Pin|xjwy1_Pin|xjwy4_Pin
-                          |ymxw_Pin;
+                          |ymwy_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
@@ -224,7 +224,7 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* adcHandle)
     hdma_adc1.Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD;
     hdma_adc1.Init.MemDataAlignment = DMA_MDATAALIGN_WORD;
     hdma_adc1.Init.Mode = DMA_CIRCULAR;
-    hdma_adc1.Init.Priority = DMA_PRIORITY_LOW;
+    hdma_adc1.Init.Priority = DMA_PRIORITY_MEDIUM;
     hdma_adc1.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
     if (HAL_DMA_Init(&hdma_adc1) != HAL_OK)
     {
@@ -251,13 +251,13 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* adcHandle)
     __HAL_RCC_GPIOA_CLK_ENABLE();
     __HAL_RCC_GPIOB_CLK_ENABLE();
     /**ADC2 GPIO Configuration
-    PA6     ------> ADC2_IN6
+    PA4     ------> ADC2_IN4
     PB1     ------> ADC2_IN9
     */
-    GPIO_InitStruct.Pin = yuliang_Pin;
+    GPIO_InitStruct.Pin = youliang_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
-    HAL_GPIO_Init(yuliang_GPIO_Port, &GPIO_InitStruct);
+    HAL_GPIO_Init(youliang_GPIO_Port, &GPIO_InitStruct);
 
     GPIO_InitStruct.Pin = batter_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
@@ -273,9 +273,12 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* adcHandle)
     hdma_adc2.Init.MemInc = DMA_MINC_ENABLE;
     hdma_adc2.Init.PeriphDataAlignment = DMA_PDATAALIGN_WORD;
     hdma_adc2.Init.MemDataAlignment = DMA_MDATAALIGN_WORD;
-    hdma_adc2.Init.Mode = DMA_NORMAL;
+    hdma_adc2.Init.Mode = DMA_CIRCULAR;
     hdma_adc2.Init.Priority = DMA_PRIORITY_MEDIUM;
-    hdma_adc2.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+    hdma_adc2.Init.FIFOMode = DMA_FIFOMODE_ENABLE;
+    hdma_adc2.Init.FIFOThreshold = DMA_FIFO_THRESHOLD_FULL;
+    hdma_adc2.Init.MemBurst = DMA_MBURST_SINGLE;
+    hdma_adc2.Init.PeriphBurst = DMA_PBURST_SINGLE;
     if (HAL_DMA_Init(&hdma_adc2) != HAL_OK)
     {
       Error_Handler();
@@ -312,7 +315,7 @@ void HAL_ADC_MspDeInit(ADC_HandleTypeDef* adcHandle)
     PB0     ------> ADC1_IN8
     */
     HAL_GPIO_DeInit(GPIOC, oil_yycj_Pin|xjwy2_Pin|xjwy1_Pin|xjwy4_Pin
-                          |ymxw_Pin);
+                          |ymwy_Pin);
 
     HAL_GPIO_DeInit(xjwy3_GPIO_Port, xjwy3_Pin);
 
@@ -341,10 +344,10 @@ void HAL_ADC_MspDeInit(ADC_HandleTypeDef* adcHandle)
     __HAL_RCC_ADC2_CLK_DISABLE();
 
     /**ADC2 GPIO Configuration
-    PA6     ------> ADC2_IN6
+    PA4     ------> ADC2_IN4
     PB1     ------> ADC2_IN9
     */
-    HAL_GPIO_DeInit(yuliang_GPIO_Port, yuliang_Pin);
+    HAL_GPIO_DeInit(youliang_GPIO_Port, youliang_Pin);
 
     HAL_GPIO_DeInit(batter_GPIO_Port, batter_Pin);
 
