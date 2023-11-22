@@ -1098,7 +1098,6 @@ void Oadc_Handle(void *argument)
   uint32_t battery_capacity = 0,oil_capacity = 0;
 	uint32_t count_som = 0;
 	uint8_t Oil_count[110]= {0};
-	uint16_t Oil_dat = 0;                         //ADC油量采集原始数据
 	uint16_t High[8] = {0};                       //油量高度数组
 	uint8_t Oil = 0;							 							  //油量
 	static uint8_t memory_oil = 0;
@@ -1116,17 +1115,17 @@ void Oadc_Handle(void *argument)
 				oil_capacity += adc2_value[i++];
 				battery_capacity += adc2_value[i++];
 		  }
-			printf("battery_capacity = %d\r\noil_capacity = %d\r\n",battery_capacity*330/4096,oil_capacity*330/4096);
+//			printf("battery_capacity = %d\r\noil_capacity = %d\r\n",battery_capacity*330/4096,oil_capacity*330/4096);
 			if(first_flag == 1)             //采样首次油量数据
 			{
 				oil_first:
 				/* 获取各通道ADC采集值 */
-				Oil_dat = oil_capacity/10;
+				oil_capacity = oil_capacity/10;
 				/* 油量高度与检测电压的关系 High(mm) = Volt(mv) / 5 */
-				if(Oil_dat > 100 && Oil_dat < 1400)//&& Oil_dat
+				if(oil_capacity > 100 && oil_capacity < 1400)//&& Oil_dat
 				{
-					printf("adc = %d\r\n",Oil_dat); 
-					High[High_Count] = (Oil_dat * 3300*2.1) / 4095 / 5;
+//					printf("adc = %d\r\n",Oil_dat); 
+					High[High_Count] = (oil_capacity * 3300*2.1) / 4095 / 5;
 					High_Count++;
 					if(High_Count >= 100)
 					{
@@ -1148,6 +1147,7 @@ void Oadc_Handle(void *argument)
 							Oil_base_dat = Oil;
 							first_flag = 0;
 							memory_oil = Oil_base_dat;
+							__HAL_TIM_SET_COUNTER(&htim13,0);
 							__HAL_TIM_ENABLE(&htim13);                                     // 使能计数器	
 						}
 						else if(Oil < 30){
@@ -1163,6 +1163,7 @@ void Oadc_Handle(void *argument)
 							Oil_base_dat = 99;
 							first_flag = 0;
 							memory_oil = Oil_base_dat;
+							__HAL_TIM_SET_COUNTER(&htim13,0);
 							__HAL_TIM_ENABLE(&htim13);                                     // 使能计数器	
 						}										
 					}
@@ -1179,14 +1180,13 @@ void Oadc_Handle(void *argument)
 			else if(first_flag == 0)                                             //定时器校验油量数据
 			{
 					/* 获取各通道ADC采集值 */
-				Oil_dat = oil_capacity/10;
+				oil_capacity = oil_capacity/10;
 				/* 油量高度与检测电压的关系 High(mm) = Volt(mv) / 5 */
-				if(Oil_dat > 350)    /* 没测到液体时小于50mv，所以去350 */
+				if(oil_capacity > 350)    /* 没测到液体时小于50mv，所以去350 */
 				{
-					High[High_Count] = (Oil_dat * 3300*2.1) / 4095 / 5;
+					High[High_Count] = (oil_capacity * 3300*2.1) / 4095 / 5;
 					High_Count++;
-					if(High_Count >= 5)
-					{
+					if(High_Count >= 5){
 						for(uint8_t i = 0; i < High_Count-1; i++){
 							for(int8_t j = i+1; j < High_Count; j++){
 								if(High[j] < High[i]){
@@ -1212,13 +1212,11 @@ void Oadc_Handle(void *argument)
 					}
 					if(count_som/50 >= memory_oil){bf++;}
 					else if(count_som/50 < memory_oil){df += count_som/50,cf++;}
-					if(bf >= 5)                                      //测量值大于Oil_base_dat
-					{
+					if(bf >= 5){                                      //测量值大于Oil_base_dat
 						 __HAL_TIM_DISABLE(&htim13);																									// 失能计数器
 						 bf = 0;cf = 0;
 					}
-					else if(cf >= 5)
-					{
+					else if(cf >= 5){
 						memory_oil = df/5;
 						__HAL_TIM_SET_COUNTER(&htim13,0);
 						__HAL_TIM_ENABLE(&htim13);																									// 使能计数器
@@ -1232,37 +1230,30 @@ void Oadc_Handle(void *argument)
 			battery_capacity = battery_capacity*330/4096;                    //电池电量采样
 			if(battery_capacity >3235){
 				oadc_msg[0] = 6;
-			}
-			else if( battery_capacity > 3160&&battery_capacity < 3235){
+			}else if( battery_capacity > 3160&&battery_capacity < 3235){
 				oadc_msg[0] = 5;
-			}
-			else if( battery_capacity > 3080&&battery_capacity < 3160){
+			}else if( battery_capacity > 3080&&battery_capacity < 3160){
 				oadc_msg[0] = 4;
-			}
-			else if( battery_capacity > 2990&&battery_capacity < 3080){
+			}else if( battery_capacity > 2990&&battery_capacity < 3080){
 				oadc_msg[0] = 3;
-			}
-			else if( battery_capacity > 2910&&battery_capacity < 2990){
+			}else if( battery_capacity > 2910&&battery_capacity < 2990){
 				oadc_msg[0] = 2;
-			}
-			else if( battery_capacity > 2840&&battery_capacity < 2910){
+			}else if( battery_capacity > 2840&&battery_capacity < 2910){
 				oadc_msg[0] = 1;
-			}
-			else if(battery_capacity < 2810){
+			}else if(battery_capacity < 2810){
 				oadc_msg[0] = 0;
 			}
 //			printf("battery_capacity = %d\r\n",oadc_msg[0]);
 			oadc_msg[1] = Oil_base_dat;
 			osEventFlagsSet(Can_EventHandle, CAN_EVENTBIT_7);
-//			if((osEventFlagsGet (Vcu_Event1Handle)&EVENTBIT_6) == EVENTBIT_6&&dtu_device1.Onenet_Off_flag == 0&&){
-//			OneNet_Send(oildisplay,XJ1_Device_ID,sizeof(oildisplay));
+//			if(dtu_device1.Onenet_Off_flag == 0&&dtu_device1.st_flag == 0){
+//				OneNet_Send(oildisplay,XJ1_Device_ID,sizeof(oildisplay));
 //			}
 			HAL_ADC_Start_DMA(&hadc2,adc2_value,sizeof(adc2_value)/4);
 		}
 		if(first_flag == 1){
 			osDelay(10);
-		}
-		else{
+		}else{
 			osDelay(ADC_Handle_Delay);
 		}
   }
@@ -1708,12 +1699,14 @@ void RTC_Handle(void *argument)
 {
   /* USER CODE BEGIN RTC_Handle */
   /* Infinite loop */
-	RTC_TimeTypeDef rtcTime;
-  RTC_DateTypeDef GetData;   //获取日期结构	
+//	RTC_TimeTypeDef rtcTime;
+//  RTC_DateTypeDef GetData;   //获取日期结构	
   for(;;)
   {
-		HAL_RTC_GetTime(&hrtc,&rtcTime,RTC_FORMAT_BIN);
-		HAL_RTC_GetDate(&hrtc,&GetData,RTC_FORMAT_BIN);
+		//本rtc打算用于SD数据时基标注，但因硬件设计时为考虑到，这暂时不开发此功能
+//		HAL_RTC_GetTime(&hrtc,&rtcTime,RTC_FORMAT_BIN);
+//		HAL_RTC_GetDate(&hrtc,&GetData,RTC_FORMAT_BIN);
+//		printf("      %04d-%02d-%02d\r\n",GetData.Year+2000,GetData.Month,GetData.Date);
 //		printf("      %02d-%02d-%02d\r\n",rtcTime.Hours,rtcTime.Minutes,rtcTime.Seconds);
     osDelay(RTC_Delay);
   }
